@@ -1,1 +1,3 @@
 sqlglot>=25
+psycopg2-binary>=2.9   # optionnel : volumétrie réelle si la base dbt est joignable
+pyyaml>=6              # optionnel : lecture de profiles.yml pour la connexion

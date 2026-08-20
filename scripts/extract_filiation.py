@@ -119,6 +119,76 @@ def compute_upstream(compiled_sql: str | None, colnames: list[str], schema: dict
     return result
 
 
+def fetch_row_counts(profile_path: Path, tables: list[tuple[str, str]]) -> dict[str, int]:
+    """Compte les lignes réelles via une connexion Postgres directe (identifiants
+    lus dans profiles.yml — base de démo locale, non secrets). Best-effort : si
+    la base n'est pas joignable, renvoie {} sans faire échouer l'extraction."""
+    if not profile_path.exists() or not tables:
+        return {}
+    try:
+        import psycopg2
+        import yaml
+    except ImportError:
+        return {}
+    try:
+        conf = yaml.safe_load(profile_path.read_text(encoding="utf-8"))
+        target_conf = next(iter(conf.values()))
+        out = target_conf["outputs"][target_conf["target"]]
+        if out.get("type") != "postgres":
+            return {}
+        conn = psycopg2.connect(
+            host=out["host"], port=out["port"], user=out["user"],
+            password=out["password"], dbname=out["dbname"], connect_timeout=3,
+        )
+    except Exception:
+        return {}
+
+    counts: dict[str, int] = {}
+    with conn:
+        with conn.cursor() as cur:
+            for sch, tbl in tables:
+                try:
+                    cur.execute(f'select count(*) from "{sch}"."{tbl}"')
+                    counts[f"{sch}.{tbl}"] = cur.fetchone()[0]
+                except Exception:
+                    conn.rollback()
+    conn.close()
+    return counts
+
+
+def infer_fk_guesses(nodes: dict[str, Any]) -> None:
+    """Relations inférées par convention de nommage (colonne `xxx_id` -> table
+    `xxx`/`xxxs` du même système) entre tables brutes. PAS des contraintes
+    réelles : ce projet n'en déclare aucune en base (landing zone non
+    contrainte) — vérifié via information_schema avant d'écrire cette
+    heuristique. Utilisé uniquement pour le mini schéma relationnel par
+    système ; le lignage colonne-à-colonne (sqlglot) reste la source de
+    vérité pour tout le reste."""
+    raw_by_system: dict[str, list[str]] = {}
+    for nid, n in nodes.items():
+        if n["type"] == "raw" and n.get("source"):
+            raw_by_system.setdefault(n["source"]["system"], []).append(nid)
+
+    for ids in raw_by_system.values():
+        short_to_id = {nodes[i]["short"].lower(): i for i in ids}
+        for nid in ids:
+            node = nodes[nid]
+            guesses = []
+            for col in node.get("columns", []):
+                cname = col["name"]
+                if not cname.endswith("_id") or cname == "id":
+                    continue
+                prefix = cname[:-3].lower()
+                target_id = short_to_id.get(prefix) or short_to_id.get(prefix + "s")
+                if not target_id or target_id == nid:
+                    continue
+                if "id" not in {c["name"] for c in nodes[target_id]["columns"]}:
+                    continue
+                guesses.append({"column": cname, "refNode": target_id, "refColumn": "id"})
+            if guesses:
+                node["fkGuesses"] = guesses
+
+
 def extract_nodes(target_dir: Path) -> tuple[dict[str, Any], str]:
     """Retourne (nœuds, generated_at) à partir d'un target/ dbt compilé."""
     manifest = json.loads((target_dir / "manifest.json").read_text(encoding="utf-8"))
@@ -142,6 +212,7 @@ def extract_nodes(target_dir: Path) -> tuple[dict[str, Any], str]:
             "deps": [],
             "source": {"system": f"Postgres — {v['database']}", "table": f"{v['schema']}.{v['identifier']}"},
             "sql": f"select\n    {select_cols}\nfrom {v['schema']}.{v['identifier']}",
+            "queryHint": f'select * from "{v["schema"]}"."{v["identifier"]}" limit 20;',
             "columns": columns_data(cols, tests_by_target, uid),
         }
 
@@ -152,6 +223,7 @@ def extract_nodes(target_dir: Path) -> tuple[dict[str, Any], str]:
         cat_cols = catalog["nodes"].get(uid, {}).get("columns", {})
         deps = [r["name"] for r in v.get("refs", [])] + ["src_" + s[1] for s in v.get("sources", [])]
         upstream_by_col = compute_upstream(v.get("compiled_code"), list(cat_cols.keys()), schema, table_to_id)
+        alias = v.get("alias") or name
         nodes[name] = {
             "domain": LAYER.get(v.get("schema"), v.get("schema")),
             "type": "derived",
@@ -160,11 +232,21 @@ def extract_nodes(target_dir: Path) -> tuple[dict[str, Any], str]:
             "description": v.get("description") or "Aucune description renseignée dans dbt.",
             "deps": deps,
             "materialized": v["config"].get("materialized"),
-            "relation": v["database"] + "." + v["schema"] + "." + (v.get("alias") or name),
+            "relation": v["database"] + "." + v["schema"] + "." + alias,
             "sqlKind": "jinja",
             "sql": v.get("raw_code", ""),
+            "queryHint": f'select * from "{v["schema"]}"."{alias}" limit 20;',
             "columns": columns_data(cat_cols, tests_by_target, uid, upstream_by_col),
         }
+
+    infer_fk_guesses(nodes)
+
+    row_count_targets = [tuple(n["source"]["table"].split(".")) if n["type"] == "raw" else tuple(n["relation"].split(".")[1:]) for n in nodes.values()]
+    row_counts = fetch_row_counts(target_dir.parent / "profiles.yml", row_count_targets)
+    for n in nodes.values():
+        key = n["source"]["table"] if n["type"] == "raw" else ".".join(n["relation"].split(".")[1:])
+        if key in row_counts:
+            n["rowCount"] = row_counts[key]
 
     return nodes, manifest["metadata"]["generated_at"]
 

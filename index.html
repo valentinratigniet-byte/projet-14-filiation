@@ -283,6 +283,22 @@
     cursor: pointer;
   }
 
+  .system-card {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem 1.4rem;
+    margin-bottom: 1.5rem;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+
+  .system-title { font-size: 1.15rem; font-weight: 600; margin: 0 0 0.4rem; }
+  .system-meta { font-size: 0.82rem; color: var(--text-muted); margin: 0 0 0.9rem; }
+
+  .system-tables { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem; }
+  .system-tables .chip { background: var(--surface-alt); padding: 0.4rem 0.65rem; margin: 0; }
+  .system-tables .chip:hover { background: var(--surface); border: 1px solid var(--accent); }
+
   .derive-toolbar {
     display: flex;
     align-items: flex-end;
@@ -460,6 +476,42 @@
     cursor: not-allowed;
     width: fit-content;
   }
+
+  .query-hint-wrap { display: flex; flex-direction: column; gap: 0.35rem; }
+
+  .query-hint {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    background: var(--surface-alt);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.5rem 0.5rem 0.5rem 0.75rem;
+    overflow-x: auto;
+  }
+
+  .query-hint code {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.82rem;
+    white-space: pre;
+    flex: 1;
+  }
+
+  .query-hint-copy {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.72rem;
+    padding: 0.3rem 0.6rem;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    border-radius: 6px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .query-hint-copy:hover { border-color: var(--accent); color: var(--accent); }
+
+  .query-hint-note { margin: 0; font-size: 0.76rem; color: var(--text-muted); }
 
   .quality-row { display: flex; flex-wrap: wrap; gap: 0.45rem; }
 
@@ -699,6 +751,7 @@
       <button type="button" class="view-btn active" data-view="fiche">Fiche</button>
       <button type="button" class="view-btn" data-view="graphe">Graphe complet</button>
       <button type="button" class="view-btn" data-view="derive">Dérive</button>
+      <button type="button" class="view-btn" data-view="systemes">Systèmes</button>
     </div>
 
     <div id="fiche-view">
@@ -733,6 +786,10 @@
         </label>
       </div>
       <div id="derive-report"></div>
+    </div>
+
+    <div id="systemes-view" hidden>
+      <div id="systems-container"></div>
     </div>
   </main>
 </div>
@@ -923,6 +980,7 @@
       "table": "raw.customer"
     },
     "sql": "select\n    id, email, first_name, last_name, country, created_at\nfrom raw.customer",
+    "queryHint": "select * from \"raw\".\"customer\" limit 20;",
     "columns": [
       {
         "name": "id",
@@ -954,7 +1012,8 @@
         "type": "timestamp with time zone",
         "tests": []
       }
-    ]
+    ],
+    "rowCount": 5000
   },
   "src_category": {
     "domain": "Sources",
@@ -968,6 +1027,7 @@
       "table": "raw.category"
     },
     "sql": "select\n    id, name, parent_id\nfrom raw.category",
+    "queryHint": "select * from \"raw\".\"category\" limit 20;",
     "columns": [
       {
         "name": "id",
@@ -984,7 +1044,8 @@
         "type": "integer",
         "tests": []
       }
-    ]
+    ],
+    "rowCount": 10
   },
   "src_product": {
     "domain": "Sources",
@@ -998,6 +1059,7 @@
       "table": "raw.product"
     },
     "sql": "select\n    id, sku, name, category_id, price, is_active, created_at\nfrom raw.product",
+    "queryHint": "select * from \"raw\".\"product\" limit 20;",
     "columns": [
       {
         "name": "id",
@@ -1034,7 +1096,15 @@
         "type": "timestamp with time zone",
         "tests": []
       }
-    ]
+    ],
+    "fkGuesses": [
+      {
+        "column": "category_id",
+        "refNode": "src_category",
+        "refColumn": "id"
+      }
+    ],
+    "rowCount": 2000
   },
   "src_orders": {
     "domain": "Sources",
@@ -1048,6 +1118,7 @@
       "table": "raw.orders"
     },
     "sql": "select\n    id, customer_id, order_date, status\nfrom raw.orders",
+    "queryHint": "select * from \"raw\".\"orders\" limit 20;",
     "columns": [
       {
         "name": "id",
@@ -1069,7 +1140,15 @@
         "type": "text",
         "tests": []
       }
-    ]
+    ],
+    "fkGuesses": [
+      {
+        "column": "customer_id",
+        "refNode": "src_customer",
+        "refColumn": "id"
+      }
+    ],
+    "rowCount": 40400
   },
   "src_order_item": {
     "domain": "Sources",
@@ -1083,6 +1162,7 @@
       "table": "raw.order_item"
     },
     "sql": "select\n    order_id, product_id, quantity, unit_price\nfrom raw.order_item",
+    "queryHint": "select * from \"raw\".\"order_item\" limit 20;",
     "columns": [
       {
         "name": "order_id",
@@ -1104,7 +1184,20 @@
         "type": "numeric(10,2)",
         "tests": []
       }
-    ]
+    ],
+    "fkGuesses": [
+      {
+        "column": "order_id",
+        "refNode": "src_orders",
+        "refColumn": "id"
+      },
+      {
+        "column": "product_id",
+        "refNode": "src_product",
+        "refColumn": "id"
+      }
+    ],
+    "rowCount": 121331
   },
   "dim_customer": {
     "domain": "Dimensions & faits",
@@ -1119,6 +1212,7 @@
     "relation": "ecommerce.marts.dim_customer",
     "sqlKind": "jinja",
     "sql": "select customer_key, email, full_name, country\nfrom {{ ref('stg_customers') }}",
+    "queryHint": "select * from \"marts\".\"dim_customer\" limit 20;",
     "columns": [
       {
         "name": "customer_key",
@@ -1177,7 +1271,8 @@
           }
         ]
       }
-    ]
+    ],
+    "rowCount": 5000
   },
   "dim_date": {
     "domain": "Dimensions & faits",
@@ -1192,6 +1287,7 @@
     "relation": "ecommerce.marts.dim_date",
     "sqlKind": "jinja",
     "sql": "-- Calendrier généré sur l'amplitude des commandes (une ligne par jour).\nwith bornes as (\n    select min(order_date)::date as d0, max(order_date)::date as d1\n    from {{ ref('stg_orders') }}\n),\njours as (\n    select generate_series(d0, d1, interval '1 day')::date as d from bornes\n)\nselect\n    to_char(d, 'YYYYMMDD')::int      as date_key,\n    d                                as date,\n    extract(year    from d)::int     as annee,\n    extract(quarter from d)::int     as trimestre,\n    extract(month   from d)::int     as mois_num,\n    to_char(d, 'YYYY-MM')            as annee_mois\nfrom jours",
+    "queryHint": "select * from \"marts\".\"dim_date\" limit 20;",
     "columns": [
       {
         "name": "date_key",
@@ -1272,7 +1368,8 @@
           }
         ]
       }
-    ]
+    ],
+    "rowCount": 733
   },
   "dim_product": {
     "domain": "Dimensions & faits",
@@ -1287,6 +1384,7 @@
     "relation": "ecommerce.marts.dim_product",
     "sqlKind": "jinja",
     "sql": "select product_key, sku, product_name, category, price, is_active\nfrom {{ ref('stg_products') }}",
+    "queryHint": "select * from \"marts\".\"dim_product\" limit 20;",
     "columns": [
       {
         "name": "product_key",
@@ -1367,7 +1465,8 @@
           }
         ]
       }
-    ]
+    ],
+    "rowCount": 2000
   },
   "stg_customers": {
     "domain": "Staging",
@@ -1382,6 +1481,7 @@
     "relation": "ecommerce.staging.stg_customers",
     "sqlKind": "jinja",
     "sql": "-- Nettoyage/renommage : 1 modèle staging = 1 source.\nselect\n    id                              as customer_key,\n    lower(email)                    as email,\n    first_name || ' ' || last_name  as full_name,\n    country\nfrom {{ source('raw', 'customer') }}",
+    "queryHint": "select * from \"staging\".\"stg_customers\" limit 20;",
     "columns": [
       {
         "name": "customer_key",
@@ -1425,11 +1525,11 @@
         "upstream": [
           {
             "node": "src_customer",
-            "column": "last_name"
+            "column": "first_name"
           },
           {
             "node": "src_customer",
-            "column": "first_name"
+            "column": "last_name"
           }
         ]
       },
@@ -1444,7 +1544,8 @@
           }
         ]
       }
-    ]
+    ],
+    "rowCount": 5000
   },
   "stg_orders": {
     "domain": "Staging",
@@ -1459,6 +1560,7 @@
     "relation": "ecommerce.staging.stg_orders",
     "sqlKind": "jinja",
     "sql": "select\n    id           as order_id,\n    customer_id  as customer_key,\n    order_date,\n    status\nfrom {{ source('raw', 'orders') }}",
+    "queryHint": "select * from \"staging\".\"stg_orders\" limit 20;",
     "columns": [
       {
         "name": "order_id",
@@ -1526,7 +1628,8 @@
           }
         ]
       }
-    ]
+    ],
+    "rowCount": 40400
   },
   "stg_order_items": {
     "domain": "Staging",
@@ -1541,6 +1644,7 @@
     "relation": "ecommerce.staging.stg_order_items",
     "sqlKind": "jinja",
     "sql": "-- Ligne de commande + montant calculé (mesure de base du CA).\nselect\n    order_id,\n    product_id                as product_key,\n    quantity,\n    unit_price,\n    quantity * unit_price      as line_amount\nfrom {{ source('raw', 'order_item') }}",
+    "queryHint": "select * from \"staging\".\"stg_order_items\" limit 20;",
     "columns": [
       {
         "name": "order_id",
@@ -1624,7 +1728,8 @@
           }
         ]
       }
-    ]
+    ],
+    "rowCount": 121331
   },
   "stg_products": {
     "domain": "Staging",
@@ -1640,6 +1745,7 @@
     "relation": "ecommerce.staging.stg_products",
     "sqlKind": "jinja",
     "sql": "-- Produit + catégorie dénormalisée (jointure raw.product x raw.category).\nselect\n    p.id            as product_key,\n    p.sku,\n    p.name          as product_name,\n    c.name          as category,\n    p.price,\n    p.is_active\nfrom {{ source('raw', 'product') }} p\njoin {{ source('raw', 'category') }} c on c.id = p.category_id",
+    "queryHint": "select * from \"staging\".\"stg_products\" limit 20;",
     "columns": [
       {
         "name": "product_key",
@@ -1720,7 +1826,8 @@
           }
         ]
       }
-    ]
+    ],
+    "rowCount": 2000
   },
   "fct_sales": {
     "domain": "Dimensions & faits",
@@ -1736,6 +1843,7 @@
     "relation": "ecommerce.marts.fct_sales",
     "sqlKind": "jinja",
     "sql": "{{\n  config(\n    materialized = 'incremental',\n    unique_key = ['order_id', 'product_key'],\n    incremental_strategy = 'delete+insert'\n  )\n}}\n\n-- Table de faits (grain : une ligne de commande).\n-- INCRÉMENTAL : à chaque exécution, on ne traite que les commandes plus récentes\n-- que le max déjà présent -> pas de recalcul complet, pas de doublons.\nselect\n    oi.order_id,\n    o.customer_key,\n    oi.product_key,\n    to_char(o.order_date, 'YYYYMMDD')::int as date_key,\n    o.status,\n    oi.quantity,\n    oi.unit_price,\n    oi.line_amount\nfrom {{ ref('stg_order_items') }} oi\njoin {{ ref('stg_orders') }} o on o.order_id = oi.order_id\n\n{% if is_incremental() %}\nwhere o.order_id > (select coalesce(max(order_id), 0) from {{ this }})\n{% endif %}",
+    "queryHint": "select * from \"marts\".\"fct_sales\" limit 20;",
     "columns": [
       {
         "name": "order_id",
@@ -1868,7 +1976,8 @@
           }
         ]
       }
-    ]
+    ],
+    "rowCount": 121331
   }
 };
   const REAL_GENERATED_AT = "2026-08-11T12:45:34.068048Z";
@@ -3411,6 +3520,31 @@
     return pre;
   }
 
+  function queryHintWidget(sql, systemLabel) {
+    const wrap = document.createElement("div");
+    wrap.className = "query-hint-wrap";
+    const bar = document.createElement("div");
+    bar.className = "query-hint";
+    const code = document.createElement("code");
+    code.textContent = sql;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "query-hint-copy";
+    btn.textContent = "Copier";
+    btn.addEventListener("click", () => {
+      navigator.clipboard.writeText(sql).then(
+        () => { btn.textContent = "Copié ✓"; setTimeout(() => { btn.textContent = "Copier"; }, 1500); },
+        () => { btn.textContent = "Échec de la copie"; setTimeout(() => { btn.textContent = "Copier"; }, 1500); }
+      );
+    });
+    bar.append(code, btn);
+    const note = document.createElement("p");
+    note.className = "query-hint-note";
+    note.textContent = "Lecture seule — à coller dans psql / pgAdmin sur " + systemLabel + ".";
+    wrap.append(bar, note);
+    return wrap;
+  }
+
   function columnsSection(columns) {
     const wrap = document.createElement("div");
     wrap.className = "col-list";
@@ -3637,8 +3771,10 @@
     document.getElementById("fiche-view").hidden = view !== "fiche";
     document.getElementById("graphe-view").hidden = view !== "graphe";
     document.getElementById("derive-view").hidden = view !== "derive";
+    document.getElementById("systemes-view").hidden = view !== "systemes";
     if (view === "graphe") { graphFocusId = null; renderGraphView(); }
     if (view === "derive") populateDeriveSelects();
+    if (view === "systemes") renderSystemsView();
   }
 
   // Niveau = plus long chemin depuis une source (sans dépendance) — place les
@@ -4022,6 +4158,171 @@
   document.getElementById("derive-from").addEventListener("change", renderDeriveReport);
   document.getElementById("derive-to").addEventListener("change", renderDeriveReport);
 
+  // ---------- Vue Systèmes source ----------
+
+  function groupBySystem() {
+    const groups = {};
+    for (const id in nodes) {
+      const n = nodes[id];
+      if (n.type === "raw" && n.source) {
+        groups[n.source.system] = groups[n.source.system] || [];
+        groups[n.source.system].push(id);
+      }
+    }
+    return groups;
+  }
+
+  function systemImpactCount(ids) {
+    const all = new Set();
+    ids.forEach((id) => downstreamClosure(id).forEach((d) => all.add(d)));
+    ids.forEach((id) => all.delete(id));
+    return all.size;
+  }
+
+  // Mini schéma relationnel : relations inférées par convention de nommage
+  // (fkGuesses, calculées côté script — aucune contrainte réelle en base pour
+  // ce projet, vérifié via information_schema).
+  function erDiagram(ids) {
+    const gapX = 90, boxH = 34, margin = 20, dip = 40;
+    const widths = ids.map((id) => estimateBoxWidth(nodes[id].short));
+    const positions = {};
+    let x = margin;
+    ids.forEach((id, i) => {
+      positions[id] = { x, y: margin, w: widths[i], h: boxH };
+      x += widths[i] + gapX;
+    });
+    const svgW = x - gapX + margin;
+    const svgH = margin * 2 + boxH + dip;
+
+    const svg = svgEl("svg", { viewBox: `0 0 ${svgW} ${svgH}`, role: "img", "aria-label": "Relations inférées entre les tables de ce système." });
+    const defs = svgEl("defs", {});
+    const marker = svgEl("marker", { id: "er-arrow-" + ids[0], viewBox: "0 0 10 10", refX: "8", refY: "5", markerWidth: "6", markerHeight: "6", orient: "auto-start-reverse" });
+    marker.appendChild(svgEl("path", { d: "M0,0 L10,5 L0,10 z", style: "fill: currentColor" }));
+    defs.appendChild(marker);
+    svg.appendChild(defs);
+
+    let hasEdges = false;
+    ids.forEach((id) => {
+      (nodes[id].fkGuesses || []).forEach((g) => {
+        const a = positions[id], b = positions[g.refNode];
+        if (!a || !b) return;
+        hasEdges = true;
+        const x1 = a.x + a.w / 2, y1 = a.y + a.h;
+        const x2 = b.x + b.w / 2, y2 = b.y + b.h;
+        const midX = (x1 + x2) / 2;
+        const path = svgEl("path", {
+          d: `M ${x1} ${y1} Q ${midX} ${y1 + dip} ${x2} ${y2}`,
+          style: "fill: none; stroke: var(--text-muted); color: var(--text-muted); stroke-width: 1.2px;",
+          "marker-end": "url(#er-arrow-" + ids[0] + ")",
+        });
+        svg.appendChild(path);
+      });
+    });
+
+    ids.forEach((id) => {
+      const pos = positions[id];
+      const type = nodes[id].type;
+      const g = svgEl("g", { class: "lineage-node is-clickable", tabindex: "0", role: "button", "aria-label": nodes[id].name });
+      const rect = svgEl("rect", {
+        x: pos.x, y: pos.y, width: pos.w, height: pos.h, rx: 7, class: "lineage-rect",
+        style: `fill: var(--${type}-soft); stroke: var(--${type}); stroke-width: 1.2px;`,
+      });
+      const text = svgEl("text", {
+        x: pos.x + pos.w / 2, y: pos.y + pos.h / 2 + 4, "text-anchor": "middle",
+        style: `font-family: 'IBM Plex Mono', monospace; font-size: 11px; fill: var(--${type});`,
+      });
+      text.textContent = nodes[id].short;
+      g.append(rect, text);
+      const go = () => { switchView("fiche"); history = [id]; render(); };
+      g.addEventListener("click", go);
+      g.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+      svg.appendChild(g);
+    });
+
+    return { svg, hasEdges };
+  }
+
+  function renderSystemsView() {
+    const container = document.getElementById("systems-container");
+    container.innerHTML = "";
+    const groups = groupBySystem();
+    const systemNames = Object.keys(groups).sort();
+
+    if (!systemNames.length) {
+      const p = document.createElement("p");
+      p.className = "derive-empty";
+      p.textContent = "Aucun système source dans ce jeu de données.";
+      container.appendChild(p);
+      return;
+    }
+
+    for (const sys of systemNames) {
+      const ids = groups[sys];
+      const card = document.createElement("div");
+      card.className = "system-card";
+
+      const title = document.createElement("h3");
+      title.className = "system-title";
+      title.textContent = sys;
+      card.appendChild(title);
+
+      const totalRows = ids.reduce((sum, id) => sum + (typeof nodes[id].rowCount === "number" ? nodes[id].rowCount : 0), 0);
+      const impacted = systemImpactCount(ids);
+      const metaParts = [ids.length + " table(s)"];
+      if (totalRows) metaParts.push(totalRows.toLocaleString("fr-FR") + " lignes au total");
+      metaParts.push(impacted + " élément(s) impacté(s) en aval");
+      const meta = document.createElement("p");
+      meta.className = "system-meta";
+      meta.textContent = metaParts.join("  ·  ");
+      card.appendChild(meta);
+
+      const chips = document.createElement("div");
+      chips.className = "system-tables";
+      ids.forEach((id) => {
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "chip";
+        const dot = document.createElement("span");
+        dot.className = "chip-dot type-" + nodes[id].type;
+        const rc = typeof nodes[id].rowCount === "number" ? " (" + nodes[id].rowCount.toLocaleString("fr-FR") + ")" : "";
+        chip.append(dot, document.createTextNode(nodes[id].name + rc));
+        chip.addEventListener("click", () => { switchView("fiche"); history = [id]; render(); });
+        chips.appendChild(chip);
+      });
+      card.appendChild(chips);
+
+      if (ids.length > 1) {
+        const { svg, hasEdges } = erDiagram(ids);
+        if (hasEdges) {
+          const figure = document.createElement("figure");
+          figure.className = "lineage-figure";
+          figure.appendChild(svg);
+          const cap = document.createElement("figcaption");
+          cap.textContent = "Relations inférées par convention de nommage (non contraintes en base).";
+          figure.appendChild(cap);
+          card.appendChild(figure);
+
+          const list = document.createElement("ul");
+          list.className = "derive-list";
+          ids.forEach((id) => {
+            (nodes[id].fkGuesses || []).forEach((g) => {
+              const li = document.createElement("li");
+              li.className = "derive-row";
+              const mark = document.createElement("span");
+              mark.className = "derive-mark change";
+              mark.textContent = "→";
+              li.append(mark, codeText(nodes[id].short + "." + g.column + " → " + nodes[g.refNode].short + "." + g.refColumn));
+              list.appendChild(li);
+            });
+          });
+          card.appendChild(list);
+        }
+      }
+
+      container.appendChild(card);
+    }
+  }
+
   function render() {
     const id = history[history.length - 1];
     const node = nodes[id];
@@ -4078,15 +4379,19 @@
     if (node.relation) facts.push(node.relation);
     if (node.refresh) facts.push(node.refresh);
     if (node.last_updated) facts.push("MAJ " + node.last_updated);
+    if (typeof node.rowCount === "number") facts.push(node.rowCount.toLocaleString("fr-FR") + " lignes");
     if (activeDatasetKey === "real") facts.push("Manifest dbt généré le " + REAL_GENERATED_AT);
     const keyfacts = document.createElement("p");
     keyfacts.className = "keyfacts";
     keyfacts.textContent = facts.join("  ·  ");
     root.appendChild(keyfacts);
 
-    // Lien vers la fiche native du système source (lecture seule ici : la modification
-    // passe par l'ERP, qui applique ses propres règles métier — pas d'écriture directe en base).
-    if (node.source) {
+    // Lien vers la fiche native du système source. Projet réel : requête de lecture
+    // prête à copier (psql/pgAdmin), toujours en lecture seule. Démo : maquette
+    // désactivée (système fictif, pas de vraie destination à pointer).
+    if (activeDatasetKey === "real" && node.queryHint) {
+      root.appendChild(queryHintWidget(node.queryHint, node.source ? node.source.system : node.relation));
+    } else if (node.source) {
       const link = document.createElement("button");
       link.className = "ext-link";
       link.type = "button";

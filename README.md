@@ -50,15 +50,21 @@ Quatre façons de regarder le lignage, dans le même outil :
 3. **Dérive** — compare deux instantanés historisés (`snapshots/*.json`) et
    liste ce qui a changé : modèles/sources ajoutés ou supprimés, colonnes
    ajoutées/supprimées/retypées, tests dbt ajoutés ou supprimés.
+4. **Systèmes** — vue par système source (ex. "Postgres — ecommerce") : ses
+   tables, leur volumétrie réelle (comptage direct en base), combien
+   d'éléments en dépendent en aval, et un mini schéma relationnel entre ses
+   tables (relations inférées par convention de nommage — ce projet ne
+   déclare aucune contrainte FK en base, vérifié via `information_schema`).
 
 Là où dbt n'a pas de description, la page l'affiche honnêtement plutôt que
 d'improviser un texte.
 
-Toute modification passe par le système source : chaque donnée brute affiche
-un renvoi (maquette) vers sa fiche native plutôt qu'un formulaire d'édition
-maison — principe de gouvernance détaillé dans le
-[Projet 11](../projet-11-gouvernance) : un ERP applique des règles métier
-qu'une écriture directe en base contournerait.
+Toute modification passe par le système source : sur la démo (systèmes
+fictifs), un bouton maquette rappelle le principe ; sur le projet réel,
+chaque table affiche une requête `SELECT ... LIMIT 20` prête à copier dans
+psql/pgAdmin — lecture seule, jamais d'écriture directe. Principe de
+gouvernance détaillé dans le [Projet 11](../projet-11-gouvernance) : un ERP
+applique des règles métier qu'une écriture directe en base contournerait.
 
 ## 📊 Résultats chiffrés
 
@@ -69,6 +75,8 @@ qu'une écriture directe en base contournerait.
 | Tests dbt affichés (jeu réel) | 28 | statut réel du dernier `dbt run` — 28/28 PASS |
 | Colonnes avec lignage colonne-à-colonne | 33 | résolu par sqlglot sur le SQL compilé, y compris à travers CTE/joins/`generate_series` |
 | Instantanés historisés | 2 | 1 extraction réelle + 1 exemple simulé (illustratif, pour démontrer la vue Dérive) |
+| Lignes en base, couche `raw` (projet réel) | 168 741 | comptage réel via psycopg2, pas une estimation — `fct_sales` seul : 121 331 |
+| Relations inférées | 4 | convention de nommage `xxx_id` → table `xxx`, sur les 5 tables `raw` (1 système) |
 
 ## 🗂️ Contenu
 
