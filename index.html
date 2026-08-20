@@ -513,6 +513,28 @@
 
   .query-hint-note { margin: 0; font-size: 0.76rem; color: var(--text-muted); }
 
+  .query-hint-wrap.danger .query-hint { border-color: var(--fail); }
+  .query-hint-wrap.danger .query-hint code { color: var(--fail); }
+  .query-hint-wrap.danger .query-hint-note { color: var(--fail); }
+
+  .issue-link-wrap { display: flex; flex-direction: column; gap: 0.3rem; }
+
+  .issue-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    width: fit-content;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.8rem;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 6px;
+    padding: 0.4rem 0.75rem;
+    text-decoration: none;
+  }
+
+  .issue-link:hover { text-decoration: underline; }
+
   .quality-row { display: flex; flex-wrap: wrap; gap: 0.45rem; }
 
   .quality-pill {
@@ -981,6 +1003,7 @@
     },
     "sql": "select\n    id, email, first_name, last_name, country, created_at\nfrom raw.customer",
     "queryHint": "select * from \"raw\".\"customer\" limit 20;",
+    "updateTemplate": "update \"raw\".\"customer\"\nset <colonne> = <nouvelle_valeur>\nwhere <condition_precise>;",
     "columns": [
       {
         "name": "id",
@@ -1028,6 +1051,7 @@
     },
     "sql": "select\n    id, name, parent_id\nfrom raw.category",
     "queryHint": "select * from \"raw\".\"category\" limit 20;",
+    "updateTemplate": "update \"raw\".\"category\"\nset <colonne> = <nouvelle_valeur>\nwhere <condition_precise>;",
     "columns": [
       {
         "name": "id",
@@ -1060,6 +1084,7 @@
     },
     "sql": "select\n    id, sku, name, category_id, price, is_active, created_at\nfrom raw.product",
     "queryHint": "select * from \"raw\".\"product\" limit 20;",
+    "updateTemplate": "update \"raw\".\"product\"\nset <colonne> = <nouvelle_valeur>\nwhere <condition_precise>;",
     "columns": [
       {
         "name": "id",
@@ -1119,6 +1144,7 @@
     },
     "sql": "select\n    id, customer_id, order_date, status\nfrom raw.orders",
     "queryHint": "select * from \"raw\".\"orders\" limit 20;",
+    "updateTemplate": "update \"raw\".\"orders\"\nset <colonne> = <nouvelle_valeur>\nwhere <condition_precise>;",
     "columns": [
       {
         "name": "id",
@@ -1163,6 +1189,7 @@
     },
     "sql": "select\n    order_id, product_id, quantity, unit_price\nfrom raw.order_item",
     "queryHint": "select * from \"raw\".\"order_item\" limit 20;",
+    "updateTemplate": "update \"raw\".\"order_item\"\nset <colonne> = <nouvelle_valeur>\nwhere <condition_precise>;",
     "columns": [
       {
         "name": "order_id",
@@ -1213,6 +1240,7 @@
     "sqlKind": "jinja",
     "sql": "select customer_key, email, full_name, country\nfrom {{ ref('stg_customers') }}",
     "queryHint": "select * from \"marts\".\"dim_customer\" limit 20;",
+    "filePath": "models/marts/dim_customer.sql",
     "columns": [
       {
         "name": "customer_key",
@@ -1288,6 +1316,7 @@
     "sqlKind": "jinja",
     "sql": "-- Calendrier généré sur l'amplitude des commandes (une ligne par jour).\nwith bornes as (\n    select min(order_date)::date as d0, max(order_date)::date as d1\n    from {{ ref('stg_orders') }}\n),\njours as (\n    select generate_series(d0, d1, interval '1 day')::date as d from bornes\n)\nselect\n    to_char(d, 'YYYYMMDD')::int      as date_key,\n    d                                as date,\n    extract(year    from d)::int     as annee,\n    extract(quarter from d)::int     as trimestre,\n    extract(month   from d)::int     as mois_num,\n    to_char(d, 'YYYY-MM')            as annee_mois\nfrom jours",
     "queryHint": "select * from \"marts\".\"dim_date\" limit 20;",
+    "filePath": "models/marts/dim_date.sql",
     "columns": [
       {
         "name": "date_key",
@@ -1385,6 +1414,7 @@
     "sqlKind": "jinja",
     "sql": "select product_key, sku, product_name, category, price, is_active\nfrom {{ ref('stg_products') }}",
     "queryHint": "select * from \"marts\".\"dim_product\" limit 20;",
+    "filePath": "models/marts/dim_product.sql",
     "columns": [
       {
         "name": "product_key",
@@ -1482,6 +1512,7 @@
     "sqlKind": "jinja",
     "sql": "-- Nettoyage/renommage : 1 modèle staging = 1 source.\nselect\n    id                              as customer_key,\n    lower(email)                    as email,\n    first_name || ' ' || last_name  as full_name,\n    country\nfrom {{ source('raw', 'customer') }}",
     "queryHint": "select * from \"staging\".\"stg_customers\" limit 20;",
+    "filePath": "models/staging/stg_customers.sql",
     "columns": [
       {
         "name": "customer_key",
@@ -1561,6 +1592,7 @@
     "sqlKind": "jinja",
     "sql": "select\n    id           as order_id,\n    customer_id  as customer_key,\n    order_date,\n    status\nfrom {{ source('raw', 'orders') }}",
     "queryHint": "select * from \"staging\".\"stg_orders\" limit 20;",
+    "filePath": "models/staging/stg_orders.sql",
     "columns": [
       {
         "name": "order_id",
@@ -1645,6 +1677,7 @@
     "sqlKind": "jinja",
     "sql": "-- Ligne de commande + montant calculé (mesure de base du CA).\nselect\n    order_id,\n    product_id                as product_key,\n    quantity,\n    unit_price,\n    quantity * unit_price      as line_amount\nfrom {{ source('raw', 'order_item') }}",
     "queryHint": "select * from \"staging\".\"stg_order_items\" limit 20;",
+    "filePath": "models/staging/stg_order_items.sql",
     "columns": [
       {
         "name": "order_id",
@@ -1720,11 +1753,11 @@
         "upstream": [
           {
             "node": "src_order_item",
-            "column": "unit_price"
+            "column": "quantity"
           },
           {
             "node": "src_order_item",
-            "column": "quantity"
+            "column": "unit_price"
           }
         ]
       }
@@ -1746,6 +1779,7 @@
     "sqlKind": "jinja",
     "sql": "-- Produit + catégorie dénormalisée (jointure raw.product x raw.category).\nselect\n    p.id            as product_key,\n    p.sku,\n    p.name          as product_name,\n    c.name          as category,\n    p.price,\n    p.is_active\nfrom {{ source('raw', 'product') }} p\njoin {{ source('raw', 'category') }} c on c.id = p.category_id",
     "queryHint": "select * from \"staging\".\"stg_products\" limit 20;",
+    "filePath": "models/staging/stg_products.sql",
     "columns": [
       {
         "name": "product_key",
@@ -1844,6 +1878,7 @@
     "sqlKind": "jinja",
     "sql": "{{\n  config(\n    materialized = 'incremental',\n    unique_key = ['order_id', 'product_key'],\n    incremental_strategy = 'delete+insert'\n  )\n}}\n\n-- Table de faits (grain : une ligne de commande).\n-- INCRÉMENTAL : à chaque exécution, on ne traite que les commandes plus récentes\n-- que le max déjà présent -> pas de recalcul complet, pas de doublons.\nselect\n    oi.order_id,\n    o.customer_key,\n    oi.product_key,\n    to_char(o.order_date, 'YYYYMMDD')::int as date_key,\n    o.status,\n    oi.quantity,\n    oi.unit_price,\n    oi.line_amount\nfrom {{ ref('stg_order_items') }} oi\njoin {{ ref('stg_orders') }} o on o.order_id = oi.order_id\n\n{% if is_incremental() %}\nwhere o.order_id > (select coalesce(max(order_id), 0) from {{ this }})\n{% endif %}",
     "queryHint": "select * from \"marts\".\"fct_sales\" limit 20;",
+    "filePath": "models/marts/fct_sales.sql",
     "columns": [
       {
         "name": "order_id",
@@ -3520,6 +3555,57 @@
     return pre;
   }
 
+  // Dépôt GitHub réel qui porte le projet dbt du jeu "Projet réel" — fixe, pas
+  // régénéré par le script (fait architectural, pas une donnée extraite).
+  const REAL_REPO = "valentinratigniet-byte/projet-10-pipeline-elt";
+
+  function updateTemplateWidget(sql) {
+    const wrap = document.createElement("div");
+    wrap.className = "query-hint-wrap danger";
+    const bar = document.createElement("div");
+    bar.className = "query-hint";
+    const code = document.createElement("code");
+    code.textContent = sql;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "query-hint-copy";
+    btn.textContent = "Copier le modèle";
+    btn.addEventListener("click", () => {
+      navigator.clipboard.writeText(sql).then(
+        () => { btn.textContent = "Copié ✓"; setTimeout(() => { btn.textContent = "Copier le modèle"; }, 1500); },
+        () => { btn.textContent = "Échec de la copie"; setTimeout(() => { btn.textContent = "Copier le modèle"; }, 1500); }
+      );
+    });
+    bar.append(code, btn);
+    const note = document.createElement("p");
+    note.className = "query-hint-note";
+    note.textContent = "Modèle, pas une requête prête à l'emploi — remplacez <colonne>/<nouvelle_valeur>/<condition_precise> et faites relire avant d'exécuter. Cet outil n'écrit jamais en base lui-même.";
+    wrap.append(bar, note);
+    return wrap;
+  }
+
+  function issueLinkWidget(node) {
+    const wrap = document.createElement("div");
+    wrap.className = "issue-link-wrap";
+    const title = encodeURIComponent("Filiation — " + node.name + " : ");
+    const body = encodeURIComponent(
+      "Modèle concerné : `" + node.filePath + "`\n\n" +
+      "Décrivez le problème observé (donnée, définition, test manquant...) :\n\n"
+    );
+    const url = "https://github.com/" + REAL_REPO + "/issues/new?title=" + title + "&body=" + body;
+    const link = document.createElement("a");
+    link.className = "issue-link";
+    link.href = url;
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.textContent = "↗ Signaler un problème sur ce modèle";
+    const note = document.createElement("p");
+    note.className = "query-hint-note";
+    note.textContent = "Ouvre une issue GitHub pré-remplie sur " + node.filePath + " — la correction passe par une PR revue, pas par une écriture live (dbt écraserait sinon toute modification directe au run suivant).";
+    wrap.append(link, note);
+    return wrap;
+  }
+
   function queryHintWidget(sql, systemLabel) {
     const wrap = document.createElement("div");
     wrap.className = "query-hint-wrap";
@@ -4391,6 +4477,10 @@
     // désactivée (système fictif, pas de vraie destination à pointer).
     if (activeDatasetKey === "real" && node.queryHint) {
       root.appendChild(queryHintWidget(node.queryHint, node.source ? node.source.system : node.relation));
+      // Correction de donnée : un modèle à adapter, jamais une écriture depuis l'outil.
+      // Placeholders volontairement invalides (<colonne>...) : un copier-coller sans
+      // adaptation échoue en base plutôt que de modifier toutes les lignes en silence.
+      if (node.updateTemplate) root.appendChild(updateTemplateWidget(node.updateTemplate));
     } else if (node.source) {
       const link = document.createElement("button");
       link.className = "ext-link";
@@ -4399,6 +4489,12 @@
       link.title = "Démo : pointerait vers la fiche d'édition native dans " + node.source.system;
       link.textContent = "↗ Ouvrir dans " + node.source.system;
       root.appendChild(link);
+    }
+
+    // Modèle dbt : la correction passe par le code (PR + review), jamais par une
+    // écriture live qui serait de toute façon écrasée au prochain dbt run.
+    if (activeDatasetKey === "real" && node.filePath) {
+      root.appendChild(issueLinkWidget(node));
     }
 
     // Qualité des données (métrique/calcul démo) — pour le projet réel, les tests

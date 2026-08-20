@@ -59,12 +59,27 @@ Quatre façons de regarder le lignage, dans le même outil :
 Là où dbt n'a pas de description, la page l'affiche honnêtement plutôt que
 d'improviser un texte.
 
-Toute modification passe par le système source : sur la démo (systèmes
-fictifs), un bouton maquette rappelle le principe ; sur le projet réel,
-chaque table affiche une requête `SELECT ... LIMIT 20` prête à copier dans
-psql/pgAdmin — lecture seule, jamais d'écriture directe. Principe de
-gouvernance détaillé dans le [Projet 11](../projet-11-gouvernance) : un ERP
-applique des règles métier qu'une écriture directe en base contournerait.
+Toute modification passe par un humain qui relit, jamais par une écriture
+depuis l'outil — il n'y a pas de backend, pas d'identifiants stockés, pas de
+chemin d'écriture caché :
+
+- Sur la démo (systèmes fictifs), un bouton maquette rappelle le principe.
+- Sur le projet réel, chaque table brute affiche une requête
+  `SELECT ... LIMIT 20` prête à copier (lecture seule), et un **modèle** de
+  correction (`UPDATE ... set <colonne> = <nouvelle_valeur> where
+  <condition_precise>`) dont les placeholders sont volontairement invalides —
+  un copier-coller sans adaptation échoue en base plutôt que de modifier
+  toutes les lignes en silence.
+- Chaque modèle dbt affiche un lien **"Signaler un problème"** qui ouvre une
+  issue GitHub pré-remplie sur le fichier exact
+  (`models/marts/fct_sales.sql`, etc.) — la correction d'un KPI/modèle passe
+  par une PR revue, jamais par une écriture live que dbt écraserait de toute
+  façon au run suivant.
+
+Principe de gouvernance détaillé dans le
+[Projet 11](../projet-11-gouvernance) : un ERP applique des règles métier
+qu'une écriture directe en base contournerait, et l'authentification règle
+qui peut agir — pas si l'action est sûre.
 
 ## 📊 Résultats chiffrés
 

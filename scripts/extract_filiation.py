@@ -213,6 +213,11 @@ def extract_nodes(target_dir: Path) -> tuple[dict[str, Any], str]:
             "source": {"system": f"Postgres — {v['database']}", "table": f"{v['schema']}.{v['identifier']}"},
             "sql": f"select\n    {select_cols}\nfrom {v['schema']}.{v['identifier']}",
             "queryHint": f'select * from "{v["schema"]}"."{v["identifier"]}" limit 20;',
+            "updateTemplate": (
+                f'update "{v["schema"]}"."{v["identifier"]}"\n'
+                f"set <colonne> = <nouvelle_valeur>\n"
+                f"where <condition_precise>;"
+            ),
             "columns": columns_data(cols, tests_by_target, uid),
         }
 
@@ -236,6 +241,7 @@ def extract_nodes(target_dir: Path) -> tuple[dict[str, Any], str]:
             "sqlKind": "jinja",
             "sql": v.get("raw_code", ""),
             "queryHint": f'select * from "{v["schema"]}"."{alias}" limit 20;',
+            "filePath": (v.get("original_file_path") or "").replace("\\", "/"),
             "columns": columns_data(cat_cols, tests_by_target, uid, upstream_by_col),
         }
 
