@@ -1,0 +1,1309 @@
+<title>Filiation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --bg: #eef1ef;
+    --sidebar-bg: #e6ebe8;
+    --surface: #ffffff;
+    --surface-alt: #e3e8e5;
+    --border: #c7d0cb;
+    --text: #1b2421;
+    --text-muted: #5c6b65;
+    --accent: #a5762c;
+    --accent-soft: #f1e2c8;
+    --metric: #46459b;
+    --metric-soft: #e4e3f5;
+    --derived: #a5762c;
+    --derived-soft: #f1e2c8;
+    --raw: #2c8567;
+    --raw-soft: #dcf0e7;
+    --ok: #3f8f43;
+    --warn: #b8791a;
+    --fail: #b83c33;
+    --shadow: 0 1px 2px rgba(20, 30, 25, 0.06), 0 6px 20px rgba(20, 30, 25, 0.05);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121615;
+      --sidebar-bg: #171c1a;
+      --surface: #1a1f1d;
+      --surface-alt: #212824;
+      --border: #313c36;
+      --text: #e7ece9;
+      --text-muted: #93a39b;
+      --accent: #dcae5c;
+      --accent-soft: #3a3020;
+      --metric: #9291d9;
+      --metric-soft: #26264a;
+      --derived: #dcae5c;
+      --derived-soft: #3a3020;
+      --raw: #55c39c;
+      --raw-soft: #16332a;
+      --ok: #67c26a;
+      --warn: #e0a83f;
+      --fail: #e2685f;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #121615;
+    --sidebar-bg: #171c1a;
+    --surface: #1a1f1d;
+    --surface-alt: #212824;
+    --border: #313c36;
+    --text: #e7ece9;
+    --text-muted: #93a39b;
+    --accent: #dcae5c;
+    --accent-soft: #3a3020;
+    --metric: #9291d9;
+    --metric-soft: #26264a;
+    --derived: #dcae5c;
+    --derived-soft: #3a3020;
+    --raw: #55c39c;
+    --raw-soft: #16332a;
+    --ok: #67c26a;
+    --warn: #e0a83f;
+    --fail: #e2685f;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "IBM Plex Sans", system-ui, sans-serif;
+    margin: 0;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .app { display: flex; flex-direction: column; min-height: 100vh; }
+
+  /* ---------- Sidebar ---------- */
+
+  .sidebar {
+    background: var(--sidebar-bg);
+    border-bottom: 1px solid var(--border);
+    padding: 1.1rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+  }
+
+  .brand { display: flex; align-items: center; gap: 0.6rem; }
+  .brand-mark { font-size: 1.5rem; line-height: 1; }
+  .brand h1 { font-weight: 700; font-size: 1.15rem; margin: 0; letter-spacing: -0.01em; }
+  .tagline { display: none; margin: 0.25rem 0 0; color: var(--text-muted); font-size: 0.85rem; max-width: 30ch; line-height: 1.5; }
+
+  .dataset-switch { display: flex; gap: 0.4rem; }
+
+  .ds-btn {
+    flex: 1;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.4rem 0.3rem;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-muted);
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .ds-btn:hover { color: var(--text); }
+
+  .ds-btn.active {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+
+  .sidebar-search {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 0.85rem;
+    padding: 0.5rem 0.7rem;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    width: 100%;
+  }
+
+  .sidebar-search::placeholder { color: var(--text-muted); }
+
+  .sidebar-groups { display: flex; flex-direction: row; gap: 1.1rem; overflow-x: auto; padding-bottom: 0.15rem; }
+  .sidebar-group { display: flex; flex-direction: row; align-items: center; gap: 0.3rem; flex-shrink: 0; }
+  .sidebar-group-title { display: none; }
+  .sidebar-list { display: flex; flex-direction: row; gap: 0.3rem; list-style: none; margin: 0; padding: 0; }
+
+  .sidebar-item {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    width: 100%;
+    font: inherit;
+    font-size: 0.85rem;
+    text-align: left;
+    background: none;
+    border: none;
+    border-radius: 6px;
+    padding: 0.4rem 0.6rem;
+    color: var(--text-muted);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .sidebar-item:hover { background: var(--surface-alt); color: var(--text); }
+
+  .sidebar-item.active {
+    background: var(--surface);
+    color: var(--text);
+    font-weight: 600;
+    box-shadow: inset 2px 0 0 var(--accent);
+  }
+
+  .sidebar-dot { width: 0.45rem; height: 0.45rem; border-radius: 50%; flex-shrink: 0; }
+  .sidebar-dot.type-metric { background: var(--metric); }
+  .sidebar-dot.type-derived { background: var(--derived); }
+  .sidebar-dot.type-raw { background: var(--raw); }
+
+  /* ---------- Main content ---------- */
+
+  .content { padding: 1.75rem 1.5rem 4rem; max-width: 760px; width: 100%; margin: 0 auto; }
+
+  .breadcrumb {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3rem;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.76rem;
+    color: var(--text-muted);
+    overflow-x: auto;
+    margin-bottom: 1.5rem;
+  }
+
+  .crumb {
+    background: none;
+    border: none;
+    padding: 0.1rem 0.25rem;
+    font: inherit;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+
+  .crumb:hover { color: var(--accent); }
+  .crumb.current { color: var(--text); font-weight: 600; cursor: default; }
+  .crumb.current:hover { color: var(--text); }
+  .crumb-sep { color: var(--border); }
+
+  select:focus-visible, button:focus-visible, input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .inspector-content { display: flex; flex-direction: column; gap: 1.5rem; animation: fadeIn 200ms ease; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .inspector-content { animation: none; }
+  }
+
+  .node-head { display: flex; flex-direction: column; gap: 0.6rem; }
+  .badge-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.66rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    padding: 0.26rem 0.55rem;
+    border-radius: 999px;
+  }
+
+  .badge.type-metric { background: var(--metric-soft); color: var(--metric); }
+  .badge.type-derived { background: var(--derived-soft); color: var(--derived); }
+  .badge.type-raw { background: var(--raw-soft); color: var(--raw); }
+  .badge.domain { background: none; color: var(--text-muted); border: 1px solid var(--border); }
+
+  .tag-pill {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.66rem;
+    letter-spacing: 0.02em;
+    padding: 0.22rem 0.5rem;
+    border-radius: 6px;
+    border: 1px dashed var(--border);
+    color: var(--text-muted);
+  }
+
+  .node-name { font-size: 1.6rem; font-weight: 600; margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+  .node-desc { margin: 0; color: var(--text-muted); max-width: 62ch; line-height: 1.6; font-size: 0.95rem; }
+
+  .keyfacts {
+    margin: 0;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+
+  .ext-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    background: none;
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    padding: 0.32rem 0.65rem;
+    cursor: not-allowed;
+    width: fit-content;
+  }
+
+  .quality-row { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+
+  .quality-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    background: var(--surface-alt);
+    padding: 0.28rem 0.6rem;
+    border-radius: 999px;
+  }
+
+  .quality-dot { width: 0.4rem; height: 0.4rem; border-radius: 50%; flex-shrink: 0; }
+  .quality-dot.status-ok { background: var(--ok); }
+  .quality-dot.status-warn { background: var(--warn); }
+  .quality-dot.status-fail { background: var(--fail); }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.66rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    margin: 0 0 0.55rem;
+  }
+
+  .formula-bar, .sql-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.1rem;
+    overflow-x: auto;
+    box-shadow: var(--shadow);
+  }
+
+  .formula-text {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 1.05rem;
+    white-space: pre;
+    display: flex;
+    align-items: center;
+    gap: 0.15rem;
+    width: max-content;
+  }
+
+  .sql-block pre {
+    margin: 0;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.82rem;
+    line-height: 1.65;
+    white-space: pre;
+    width: max-content;
+    min-width: 100%;
+  }
+
+  .token {
+    font: inherit;
+    border: none;
+    background: none;
+    cursor: pointer;
+    padding: 0.1rem 0.3rem;
+    border-radius: 5px;
+    border-bottom: 2px solid currentColor;
+  }
+
+  .token.type-metric { color: var(--metric); }
+  .token.type-derived { color: var(--derived); }
+  .token.type-raw { color: var(--raw); }
+  .token:hover { background: var(--surface-alt); }
+
+  details.tech-details { border-top: 1px solid var(--border); }
+
+  details.tech-details summary {
+    cursor: pointer;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--text-muted);
+    padding: 0.85rem 0;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+  }
+
+  details.tech-details summary::-webkit-details-marker { display: none; }
+  summary::before { content: "▸"; display: inline-block; transition: transform 150ms ease; }
+  details[open] summary::before { transform: rotate(90deg); }
+
+  @media (prefers-reduced-motion: reduce) {
+    summary::before { transition: none; }
+  }
+
+  .tech-body { padding: 0 0 0.5rem; display: flex; flex-direction: column; gap: 1.25rem; }
+
+  .example-row { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+
+  .example-pill {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.8rem;
+    font-variant-numeric: tabular-nums;
+    background: var(--surface-alt);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.26rem 0.55rem;
+  }
+
+  .col-list { display: flex; flex-direction: column; }
+
+  .col-row { padding: 0.55rem 0; border-bottom: 1px solid var(--border); }
+  .col-row:last-child { border-bottom: none; }
+
+  .col-head { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
+  .col-name { font-family: "IBM Plex Mono", monospace; font-size: 0.87rem; font-weight: 600; }
+  .col-type { font-family: "IBM Plex Mono", monospace; font-size: 0.75rem; color: var(--text-muted); }
+
+  .col-tests { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.4rem; }
+
+  .rel-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.5rem; padding-top: 0.25rem; border-top: 1px solid var(--border); }
+  .rel-col { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
+  .rel-col .eyebrow { margin-top: 0.9rem; }
+  .chip-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.1rem; }
+
+  .chip {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    text-align: left;
+    font: inherit;
+    font-size: 0.87rem;
+    background: none;
+    color: var(--text);
+    border: none;
+    border-radius: 6px;
+    padding: 0.4rem 0.5rem;
+    margin: 0 -0.5rem;
+    cursor: pointer;
+    transition: background 120ms ease;
+  }
+
+  .chip:hover { background: var(--surface-alt); }
+  .chip-dot { width: 0.45rem; height: 0.45rem; border-radius: 50%; flex-shrink: 0; }
+  .chip-dot.type-metric { background: var(--metric); }
+  .chip-dot.type-derived { background: var(--derived); }
+  .chip-dot.type-raw { background: var(--raw); }
+
+  .empty-note { font-size: 0.85rem; color: var(--text-muted); font-style: italic; margin: 0; }
+
+  @media (prefers-reduced-motion: reduce) { .chip { transition: none; } }
+
+  /* ---------- Wide layout ---------- */
+
+  @media (min-width: 760px) {
+    .app { flex-direction: row; }
+
+    .sidebar {
+      border-bottom: none;
+      border-right: 1px solid var(--border);
+      width: 280px;
+      flex-shrink: 0;
+      height: 100vh;
+      position: sticky;
+      top: 0;
+      overflow-y: auto;
+      padding: 1.75rem 1.25rem;
+      gap: 1.5rem;
+    }
+
+    .tagline { display: block; }
+    .brand-mark { font-size: 1.7rem; }
+    .brand h1 { font-size: 1.3rem; }
+
+    .sidebar-groups { flex-direction: column; gap: 1.4rem; overflow-x: visible; }
+    .sidebar-group { flex-direction: column; align-items: stretch; gap: 0.3rem; }
+    .sidebar-group-title {
+      display: block;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.66rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin: 0 0 0.15rem 0.6rem;
+    }
+    .sidebar-list { flex-direction: column; gap: 0.05rem; }
+    .sidebar-item { white-space: normal; }
+
+    .content { padding: 3rem 3rem 5rem; margin: 0; max-width: 700px; }
+  }
+</style>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">🧬</span>
+      <div>
+        <h1>Filiation</h1>
+        <p class="tagline">Remontez n'importe quel élément jusqu'à sa donnée source.</p>
+      </div>
+    </div>
+    <div class="dataset-switch" role="tablist" aria-label="Jeu de données">
+      <button type="button" class="ds-btn active" data-ds="demo">Démo</button>
+      <button type="button" class="ds-btn" data-ds="real" title="Introspecté depuis le projet dbt réel dbt_ecommerce (portfolio-data/projet-10)">Projet réel</button>
+    </div>
+    <input class="sidebar-search" id="sidebar-search" type="search" placeholder="Filtrer…" aria-label="Filtrer les éléments">
+    <div class="sidebar-groups" id="sidebar-groups"></div>
+  </aside>
+
+  <main class="content">
+    <nav class="breadcrumb" id="breadcrumb" aria-label="Fil d'Ariane"></nav>
+    <div id="inspector"></div>
+  </main>
+</div>
+
+<script>
+  const TYPE_LABEL = { metric: "Indicateur", derived: "Calcul intermédiaire", raw: "Donnée brute" };
+
+  const demoNodes = {
+    // ---- Ventes ----
+    margin_pct: {
+      domain: "Ventes", type: "metric", token: "margin_pct",
+      name: "Marge brute (%)", short: "Marge brute",
+      description: "Rentabilité brute sur les ventes, avant charges fixes et opérationnelles.",
+      formula: "( {ca_net} − {cogs} ) / {ca_net} × 100",
+      sql: "select\n    (ca_net.ca_net - cogs.cogs) / ca_net.ca_net * 100 as margin_pct\nfrom ca_net\njoin cogs using (period)",
+      owner: "Équipe Finance", refresh: "Quotidien 06h30 (dbt run)", last_updated: "2026-08-20 06:31",
+      tags: ["Indicateur nord étoile"],
+      quality: [{ label: "Plage -100 – 100 %", status: "ok" }]
+    },
+    discount_rate: {
+      domain: "Ventes", type: "metric", token: "discount_rate",
+      name: "Taux de remise (%)", short: "Taux de remise",
+      description: "Part du chiffre d'affaires brut perdue en remises commerciales.",
+      formula: "{remises} / {ca_brut} × 100",
+      sql: "select\n    sum(order_lines.discount_amount) / ca_brut.ca_brut * 100 as discount_rate\nfrom order_lines\njoin ca_brut using (period)",
+      owner: "Équipe Finance", refresh: "Quotidien 06h30 (dbt run)", last_updated: "2026-08-20 06:31",
+      quality: [{ label: "Plage 0 – 100 %", status: "ok" }]
+    },
+    ca_net: {
+      domain: "Ventes", type: "derived", token: "ca_net",
+      name: "Chiffre d'affaires net", short: "CA net",
+      description: "Ventes de la période après déduction des remises commerciales.",
+      formula: "{ca_brut} − {remises}",
+      sql: "select\n    ca_brut.ca_brut - sum(order_lines.discount_amount) as ca_net\nfrom ca_brut\njoin order_lines using (period)\ngroup by ca_brut.ca_brut",
+      owner: "Squad Data — Ventes", refresh: "Quotidien 06h00 (dbt run)", last_updated: "2026-08-20 06:14",
+      quality: [{ label: "CA net ≤ CA brut", status: "ok" }]
+    },
+    cogs: {
+      domain: "Ventes", type: "derived", token: "cogs",
+      name: "Coût des marchandises vendues", short: "COGS",
+      description: "Coût d'achat total des produits vendus sur la période (COGS).",
+      formula: "Σ ( {quantite} × {cout_unitaire} )",
+      sql: "select\n    sum(order_lines.qty * products.cost_price) as cogs\nfrom order_lines\njoin products using (product_id)",
+      owner: "Squad Data — Ventes", refresh: "Quotidien 06h00 (dbt run)", last_updated: "2026-08-20 06:14",
+      quality: [{ label: "Cohérence vs stock", status: "ok" }]
+    },
+    ca_brut: {
+      domain: "Ventes", type: "derived", token: "ca_brut",
+      name: "Chiffre d'affaires brut", short: "CA brut",
+      description: "Total des ventes de la période, avant toute remise.",
+      formula: "Σ ( {prix_unitaire} × {quantite} )",
+      sql: "select\n    sum(unit_price * qty) as ca_brut\nfrom order_lines",
+      owner: "Squad Data — Ventes", refresh: "Quotidien 06h00 (dbt run)", last_updated: "2026-08-20 06:14",
+      quality: [{ label: "Cohérence vs période précédente", status: "ok" }]
+    },
+    remises: {
+      domain: "Ventes", type: "raw", token: "discount_amount",
+      name: "Montant de remise", short: "Remises",
+      description: "Remise appliquée ligne par ligne, saisie manuellement par les commerciaux.",
+      sql: "select\n    order_line_id,\n    discount_amount\nfrom order_lines",
+      source: { system: "ERP Ventes", table: "order_lines", column: "discount_amount" },
+      data_type: "NUMERIC(10,2)",
+      example: ["12.00 €", "0.00 €", "25.50 €", "8.00 €"],
+      owner: "Squad Data — Ventes", refresh: "Quotidien 04h00 (Airflow)", last_updated: "2026-08-20 04:12",
+      quality: [{ label: "Valeurs non nulles", status: "ok" }, { label: "Plage 0 – 100 %", status: "ok" }]
+    },
+    quantite: {
+      domain: "Ventes", type: "raw", token: "qty",
+      name: "Quantité vendue", short: "Qté vendue",
+      description: "Nombre d'unités vendues par ligne de commande.",
+      sql: "select\n    order_line_id,\n    qty\nfrom order_lines",
+      source: { system: "ERP Ventes", table: "order_lines", column: "qty" },
+      data_type: "INTEGER",
+      example: ["3", "1", "12", "5"],
+      owner: "Squad Data — Ventes", refresh: "Quotidien 04h00 (Airflow)", last_updated: "2026-08-20 04:12",
+      quality: [{ label: "Valeurs non nulles", status: "ok" }, { label: "Valeurs > 0", status: "ok" }]
+    },
+    prix_unitaire: {
+      domain: "Ventes", type: "raw", token: "unit_price",
+      name: "Prix unitaire de vente", short: "Prix unit.",
+      description: "Prix affiché au client au moment de la commande.",
+      sql: "select\n    order_line_id,\n    unit_price\nfrom order_lines",
+      source: { system: "ERP Ventes", table: "order_lines", column: "unit_price" },
+      data_type: "NUMERIC(10,2)",
+      example: ["149.90 €", "89.00 €", "212.50 €", "64.00 €"],
+      owner: "Squad Data — Ventes", refresh: "Quotidien 04h00 (Airflow)", last_updated: "2026-08-20 04:12",
+      quality: [{ label: "Valeurs non nulles", status: "ok" }, { label: "Cohérence devise", status: "ok" }]
+    },
+    cout_unitaire: {
+      domain: "Ventes", type: "raw", token: "cost_price",
+      name: "Coût unitaire d'achat", short: "Coût unit.",
+      description: "Coût d'achat moyen pondéré, recalculé mensuellement par les achats.",
+      sql: "select\n    product_id,\n    cost_price\nfrom products",
+      source: { system: "PIM Produits", table: "products", column: "cost_price" },
+      data_type: "NUMERIC(10,2)",
+      example: ["71.40 €", "32.10 €", "—", "24.00 €"],
+      owner: "Équipe Achats", refresh: "Mensuel, 1er du mois", last_updated: "2026-08-01 09:00",
+      quality: [{ label: "Valeurs non nulles", status: "fail", note: "12 produits sans coût renseigné" }, { label: "Fraîcheur < 30 jours", status: "ok" }]
+    },
+
+    // ---- Marketing ----
+    cac: {
+      domain: "Marketing", type: "metric", token: "cac",
+      name: "Coût d'acquisition client (CAC)", short: "CAC",
+      description: "Budget marketing dépensé pour acquérir un nouveau client sur la période.",
+      formula: "{depenses_marketing} / {nouveaux_clients}",
+      sql: "select\n    marketing_spend.amount_spent / nouveaux_clients.nouveaux_clients as cac\nfrom marketing_spend\njoin nouveaux_clients using (period)",
+      owner: "Équipe Marketing", refresh: "Quotidien 08h00 (dbt run)", last_updated: "2026-08-20 08:05",
+      tags: ["Indicateur nord étoile"],
+      quality: [{ label: "CAC > 0", status: "ok" }]
+    },
+    taux_conversion: {
+      domain: "Marketing", type: "metric", token: "taux_conversion",
+      name: "Taux de conversion visiteurs → clients (%)", short: "Taux conversion",
+      description: "Part des visiteurs uniques du site ayant réalisé leur première commande.",
+      formula: "{nouveaux_clients} / {visiteurs_site} × 100",
+      sql: "select\n    nouveaux_clients.nouveaux_clients / sessions.unique_visitors * 100 as taux_conversion\nfrom nouveaux_clients\njoin sessions using (period)",
+      owner: "Équipe Marketing", refresh: "Quotidien 08h00 (dbt run)", last_updated: "2026-08-20 08:05",
+      quality: [{ label: "Plage 0 – 100 %", status: "ok" }]
+    },
+    nouveaux_clients: {
+      domain: "Marketing", type: "derived", token: "nouveaux_clients",
+      name: "Nouveaux clients", short: "Nouv. clients",
+      description: "Nombre de clients distincts ayant passé leur première commande sur la période.",
+      formula: "COUNT DISTINCT ( {client_id} ) où {date_premiere_commande} ∈ période",
+      sql: "select\n    count(distinct customers.customer_id) as nouveaux_clients\nfrom orders\njoin customers using (customer_id)\nwhere orders.first_order_date between :start_date and :end_date",
+      owner: "Squad Data — Marketing", refresh: "Quotidien 07h30 (dbt run)", last_updated: "2026-08-20 07:36",
+      quality: [{ label: "Cohérence vs CRM", status: "ok" }]
+    },
+    depenses_marketing: {
+      domain: "Marketing", type: "raw", token: "amount_spent",
+      name: "Dépenses marketing", short: "Dépenses mkg",
+      description: "Dépenses publicitaires et marketing engagées sur la période, tous canaux confondus.",
+      sql: "select\n    campaign_id,\n    amount_spent\nfrom marketing_spend",
+      source: { system: "Ads Manager", table: "marketing_spend", column: "amount_spent" },
+      data_type: "NUMERIC(10,2)",
+      example: ["1 240 €", "3 800 €", "920 €"],
+      owner: "Marketing Ops", refresh: "Toutes les 6h (connecteur Ads)", last_updated: "2026-08-20 12:00",
+      quality: [{ label: "Valeurs non nulles", status: "ok" }]
+    },
+    client_id: {
+      domain: "Marketing", type: "raw", token: "customer_id",
+      name: "Identifiant client", short: "ID client",
+      description: "Identifiant unique du client dans le CRM, utilisé pour relier commandes et campagnes.",
+      sql: "select\n    customer_id,\n    signup_date\nfrom customers",
+      source: { system: "CRM", table: "customers", column: "customer_id" },
+      data_type: "VARCHAR",
+      example: ["CUST-10234", "CUST-10235", "CUST-10236"],
+      owner: "Squad Data — CRM", refresh: "Quotidien 05h00 (Airflow)", last_updated: "2026-08-20 05:07",
+      tags: ["Donnée personnelle (RGPD)"],
+      quality: [{ label: "Unicité", status: "ok" }]
+    },
+    date_premiere_commande: {
+      domain: "Marketing", type: "raw", token: "first_order_date",
+      name: "Date de première commande", short: "1ère commande",
+      description: "Date de la toute première commande passée par le client.",
+      sql: "select\n    order_id,\n    customer_id,\n    first_order_date\nfrom orders",
+      source: { system: "ERP Ventes", table: "orders", column: "first_order_date" },
+      data_type: "DATE",
+      example: ["2026-07-02", "2026-08-11", "2026-06-19"],
+      owner: "Squad Data — Ventes", refresh: "Quotidien 04h00 (Airflow)", last_updated: "2026-08-20 04:12",
+      quality: [{ label: "Valeurs non nulles", status: "ok" }]
+    },
+    visiteurs_site: {
+      domain: "Marketing", type: "raw", token: "unique_visitors",
+      name: "Visiteurs uniques site", short: "Visiteurs",
+      description: "Nombre de visiteurs uniques ayant consulté le site sur la période.",
+      sql: "select\n    session_date,\n    unique_visitors\nfrom sessions",
+      source: { system: "Analytics Web (GA4)", table: "sessions", column: "unique_visitors" },
+      data_type: "INTEGER",
+      example: ["4 812", "5 103", "4 950"],
+      owner: "Squad Data — Marketing", refresh: "Quotidien 07h00 (connecteur GA4)", last_updated: "2026-08-18 07:04",
+      quality: [{ label: "Fraîcheur < 24h", status: "warn", note: "Connecteur GA4 en retard de 36h" }, { label: "Valeurs non nulles", status: "ok" }]
+    }
+  };
+
+  // AUTO-GENERATED:BEGIN (ne pas éditer à la main — régénéré par scripts/extract_filiation.py)
+  const realNodes = {
+    src_customer: {
+      domain: "Sources", type: "raw",
+      name: "customer", short: "customer",
+      description: "Aucune description renseignée dans dbt (source externe).",
+      deps: [],
+      source: { system: "Postgres — ecommerce", table: "raw.customer" },
+      sql: "select\n    id,\n    email,\n    first_name,\n    last_name,\n    country,\n    created_at\nfrom raw.customer",
+      columns: [
+        { name: "id", type: "bigint", tests: [] },
+        { name: "email", type: "text", tests: [] },
+        { name: "first_name", type: "text", tests: [] },
+        { name: "last_name", type: "text", tests: [] },
+        { name: "country", type: "text", tests: [] },
+        { name: "created_at", type: "timestamp with time zone", tests: [] }
+      ]
+    },
+    src_category: {
+      domain: "Sources", type: "raw",
+      name: "category", short: "category",
+      description: "Aucune description renseignée dans dbt (source externe).",
+      deps: [],
+      source: { system: "Postgres — ecommerce", table: "raw.category" },
+      sql: "select\n    id,\n    name,\n    parent_id\nfrom raw.category",
+      columns: [
+        { name: "id", type: "integer", tests: [] },
+        { name: "name", type: "text", tests: [] },
+        { name: "parent_id", type: "integer", tests: [] }
+      ]
+    },
+    src_product: {
+      domain: "Sources", type: "raw",
+      name: "product", short: "product",
+      description: "Aucune description renseignée dans dbt (source externe).",
+      deps: [],
+      source: { system: "Postgres — ecommerce", table: "raw.product" },
+      sql: "select\n    id,\n    sku,\n    name,\n    category_id,\n    price,\n    is_active,\n    created_at\nfrom raw.product",
+      columns: [
+        { name: "id", type: "bigint", tests: [] },
+        { name: "sku", type: "text", tests: [] },
+        { name: "name", type: "text", tests: [] },
+        { name: "category_id", type: "integer", tests: [] },
+        { name: "price", type: "numeric(10,2)", tests: [] },
+        { name: "is_active", type: "boolean", tests: [] },
+        { name: "created_at", type: "timestamp with time zone", tests: [] }
+      ]
+    },
+    src_orders: {
+      domain: "Sources", type: "raw",
+      name: "orders", short: "orders",
+      description: "Aucune description renseignée dans dbt (source externe).",
+      deps: [],
+      source: { system: "Postgres — ecommerce", table: "raw.orders" },
+      sql: "select\n    id,\n    customer_id,\n    order_date,\n    status\nfrom raw.orders",
+      columns: [
+        { name: "id", type: "bigint", tests: [] },
+        { name: "customer_id", type: "bigint", tests: [] },
+        { name: "order_date", type: "timestamp with time zone", tests: [] },
+        { name: "status", type: "text", tests: [] }
+      ]
+    },
+    src_order_item: {
+      domain: "Sources", type: "raw",
+      name: "order_item", short: "order_item",
+      description: "Aucune description renseignée dans dbt (source externe).",
+      deps: [],
+      source: { system: "Postgres — ecommerce", table: "raw.order_item" },
+      sql: "select\n    order_id,\n    product_id,\n    quantity,\n    unit_price\nfrom raw.order_item",
+      columns: [
+        { name: "order_id", type: "bigint", tests: [] },
+        { name: "product_id", type: "bigint", tests: [] },
+        { name: "quantity", type: "integer", tests: [] },
+        { name: "unit_price", type: "numeric(10,2)", tests: [] }
+      ]
+    },
+    dim_customer: {
+      domain: "Dimensions & faits", type: "derived",
+      name: "dim_customer", short: "dim_customer",
+      description: "Dimension client (source : stg_customers).",
+      deps: ["stg_customers"],
+      materialized: "table",
+      relation: "ecommerce.marts.dim_customer",
+      sqlKind: "jinja",
+      sql: "select customer_key, email, full_name, country\nfrom {{ ref('stg_customers') }}",
+      columns: [
+        { name: "customer_key", type: "bigint", tests: [{ label: "Unicité", status: "ok" }, { label: "Valeurs non nulles", status: "ok" }, { label: "Intégrité référentielle", status: "ok" }] },
+        { name: "email", type: "text", tests: [] },
+        { name: "full_name", type: "text", tests: [] },
+        { name: "country", type: "text", tests: [] }
+      ]
+    },
+    dim_date: {
+      domain: "Dimensions & faits", type: "derived",
+      name: "dim_date", short: "dim_date",
+      description: "Table calendrier continue (une ligne par jour).",
+      deps: ["stg_orders"],
+      materialized: "table",
+      relation: "ecommerce.marts.dim_date",
+      sqlKind: "jinja",
+      sql: "-- Calendrier généré sur l'amplitude des commandes (une ligne par jour).\nwith bornes as (\n    select min(order_date)::date as d0, max(order_date)::date as d1\n    from {{ ref('stg_orders') }}\n),\njours as (\n    select generate_series(d0, d1, interval '1 day')::date as d from bornes\n)\nselect\n    to_char(d, 'YYYYMMDD')::int      as date_key,\n    d                                as date,\n    extract(year    from d)::int     as annee,\n    extract(quarter from d)::int     as trimestre,\n    extract(month   from d)::int     as mois_num,\n    to_char(d, 'YYYY-MM')            as annee_mois\nfrom jours",
+      columns: [
+        { name: "date_key", type: "integer", tests: [{ label: "Unicité", status: "ok" }, { label: "Valeurs non nulles", status: "ok" }, { label: "Intégrité référentielle", status: "ok" }] },
+        { name: "date", type: "date", tests: [] },
+        { name: "annee", type: "integer", tests: [] },
+        { name: "trimestre", type: "integer", tests: [] },
+        { name: "mois_num", type: "integer", tests: [] },
+        { name: "annee_mois", type: "text", tests: [] }
+      ]
+    },
+    dim_product: {
+      domain: "Dimensions & faits", type: "derived",
+      name: "dim_product", short: "dim_product",
+      description: "Dimension produit, catégorie dénormalisée.",
+      deps: ["stg_products"],
+      materialized: "table",
+      relation: "ecommerce.marts.dim_product",
+      sqlKind: "jinja",
+      sql: "select product_key, sku, product_name, category, price, is_active\nfrom {{ ref('stg_products') }}",
+      columns: [
+        { name: "product_key", type: "bigint", tests: [{ label: "Unicité", status: "ok" }, { label: "Valeurs non nulles", status: "ok" }, { label: "Intégrité référentielle", status: "ok" }] },
+        { name: "sku", type: "text", tests: [] },
+        { name: "product_name", type: "text", tests: [] },
+        { name: "category", type: "text", tests: [] },
+        { name: "price", type: "numeric(10,2)", tests: [] },
+        { name: "is_active", type: "boolean", tests: [] }
+      ]
+    },
+    stg_customers: {
+      domain: "Staging", type: "derived",
+      name: "stg_customers", short: "stg_customers",
+      description: "Aucune description renseignée dans dbt.",
+      deps: ["src_customer"],
+      materialized: "view",
+      relation: "ecommerce.staging.stg_customers",
+      sqlKind: "jinja",
+      sql: "-- Nettoyage/renommage : 1 modèle staging = 1 source.\nselect\n    id                              as customer_key,\n    lower(email)                    as email,\n    first_name || ' ' || last_name  as full_name,\n    country\nfrom {{ source('raw', 'customer') }}",
+      columns: [
+        { name: "customer_key", type: "bigint", tests: [{ label: "Unicité", status: "ok" }, { label: "Valeurs non nulles", status: "ok" }, { label: "Intégrité référentielle", status: "ok" }] },
+        { name: "email", type: "text", tests: [] },
+        { name: "full_name", type: "text", tests: [] },
+        { name: "country", type: "text", tests: [] }
+      ]
+    },
+    stg_orders: {
+      domain: "Staging", type: "derived",
+      name: "stg_orders", short: "stg_orders",
+      description: "Aucune description renseignée dans dbt.",
+      deps: ["src_orders"],
+      materialized: "view",
+      relation: "ecommerce.staging.stg_orders",
+      sqlKind: "jinja",
+      sql: "select\n    id           as order_id,\n    customer_id  as customer_key,\n    order_date,\n    status\nfrom {{ source('raw', 'orders') }}",
+      columns: [
+        { name: "order_id", type: "bigint", tests: [{ label: "Unicité", status: "ok" }, { label: "Valeurs non nulles", status: "ok" }, { label: "Intégrité référentielle", status: "ok" }] },
+        { name: "customer_key", type: "bigint", tests: [{ label: "Valeurs non nulles", status: "ok" }, { label: "Intégrité référentielle", status: "ok" }] },
+        { name: "order_date", type: "timestamp with time zone", tests: [] },
+        { name: "status", type: "text", tests: [] }
+      ]
+    },
+    stg_order_items: {
+      domain: "Staging", type: "derived",
+      name: "stg_order_items", short: "stg_order_items",
+      description: "Aucune description renseignée dans dbt.",
+      deps: ["src_order_item"],
+      materialized: "view",
+      relation: "ecommerce.staging.stg_order_items",
+      sqlKind: "jinja",
+      sql: "-- Ligne de commande + montant calculé (mesure de base du CA).\nselect\n    order_id,\n    product_id                as product_key,\n    quantity,\n    unit_price,\n    quantity * unit_price      as line_amount\nfrom {{ source('raw', 'order_item') }}",
+      columns: [
+        { name: "order_id", type: "bigint", tests: [{ label: "Valeurs non nulles", status: "ok" }, { label: "Intégrité référentielle", status: "ok" }] },
+        { name: "product_key", type: "bigint", tests: [{ label: "Valeurs non nulles", status: "ok" }, { label: "Intégrité référentielle", status: "ok" }] },
+        { name: "quantity", type: "integer", tests: [{ label: "Valeurs non nulles", status: "ok" }] },
+        { name: "unit_price", type: "numeric(10,2)", tests: [] },
+        { name: "line_amount", type: "numeric", tests: [] }
+      ]
+    },
+    stg_products: {
+      domain: "Staging", type: "derived",
+      name: "stg_products", short: "stg_products",
+      description: "Aucune description renseignée dans dbt.",
+      deps: ["src_category", "src_product"],
+      materialized: "view",
+      relation: "ecommerce.staging.stg_products",
+      sqlKind: "jinja",
+      sql: "-- Produit + catégorie dénormalisée (jointure raw.product x raw.category).\nselect\n    p.id            as product_key,\n    p.sku,\n    p.name          as product_name,\n    c.name          as category,\n    p.price,\n    p.is_active\nfrom {{ source('raw', 'product') }} p\njoin {{ source('raw', 'category') }} c on c.id = p.category_id",
+      columns: [
+        { name: "product_key", type: "bigint", tests: [{ label: "Unicité", status: "ok" }, { label: "Valeurs non nulles", status: "ok" }, { label: "Intégrité référentielle", status: "ok" }] },
+        { name: "sku", type: "text", tests: [] },
+        { name: "product_name", type: "text", tests: [] },
+        { name: "category", type: "text", tests: [] },
+        { name: "price", type: "numeric(10,2)", tests: [] },
+        { name: "is_active", type: "boolean", tests: [] }
+      ]
+    },
+    fct_sales: {
+      domain: "Dimensions & faits", type: "derived",
+      name: "fct_sales", short: "fct_sales",
+      description: "Table de faits incrémentale (grain : ligne de commande).",
+      deps: ["stg_order_items", "stg_orders"],
+      materialized: "incremental",
+      relation: "ecommerce.marts.fct_sales",
+      sqlKind: "jinja",
+      sql: "{{\n  config(\n    materialized = 'incremental',\n    unique_key = ['order_id', 'product_key'],\n    incremental_strategy = 'delete+insert'\n  )\n}}\n\n-- Table de faits (grain : une ligne de commande).\n-- INCRÉMENTAL : à chaque exécution, on ne traite que les commandes plus récentes\n-- que le max déjà présent -> pas de recalcul complet, pas de doublons.\nselect\n    oi.order_id,\n    o.customer_key,\n    oi.product_key,\n    to_char(o.order_date, 'YYYYMMDD')::int as date_key,\n    o.status,\n    oi.quantity,\n    oi.unit_price,\n    oi.line_amount\nfrom {{ ref('stg_order_items') }} oi\njoin {{ ref('stg_orders') }} o on o.order_id = oi.order_id\n\n{% if is_incremental() %}\nwhere o.order_id > (select coalesce(max(order_id), 0) from {{ this }})\n{% endif %}",
+      columns: [
+        { name: "order_id", type: "bigint", tests: [{ label: "Valeurs non nulles", status: "ok" }] },
+        { name: "customer_key", type: "bigint", tests: [{ label: "Intégrité référentielle", status: "ok" }] },
+        { name: "product_key", type: "bigint", tests: [{ label: "Valeurs non nulles", status: "ok" }, { label: "Intégrité référentielle", status: "ok" }] },
+        { name: "date_key", type: "integer", tests: [{ label: "Intégrité référentielle", status: "ok" }] },
+        { name: "status", type: "text", tests: [{ label: "Valeurs non nulles", status: "ok" }, { label: "Valeurs autorisées : pending, paid, shipped, delivered, cancelled", status: "ok" }] },
+        { name: "quantity", type: "integer", tests: [{ label: "Valeurs non nulles", status: "ok" }] },
+        { name: "unit_price", type: "numeric(10,2)", tests: [] },
+        { name: "line_amount", type: "numeric", tests: [{ label: "Valeurs non nulles", status: "ok" }] }
+      ]
+    },
+  };
+  const REAL_GENERATED_AT = "2026-08-11T12:45:34.068048Z";
+  // AUTO-GENERATED:END
+
+  // Chaque nœud fixe explicitement ses dépendances (projet réel), ou elles sont
+  // dérivées du texte de la formule (démo fictive) — source de vérité unique du graphe.
+  function prepareDataset(ds) {
+    for (const id in ds) {
+      const node = ds[id];
+      if (!node.deps) node.deps = node.formula ? [...node.formula.matchAll(/\{(\w+)\}/g)].map((m) => m[1]) : [];
+    }
+  }
+  prepareDataset(demoNodes);
+  prepareDataset(realNodes);
+
+  const DATASETS = { demo: demoNodes, real: realNodes };
+  const DATASET_ROOT = { demo: "margin_pct", real: "fct_sales" };
+  let nodes = demoNodes;
+  let activeDatasetKey = "demo";
+
+  function usedBy(id) {
+    return Object.keys(nodes).filter((otherId) => nodes[otherId].deps.includes(id));
+  }
+
+  // Table de correspondance token SQL -> id de nœud (démo uniquement), pour rendre le SQL cliquable.
+  const tokenToNode = {};
+  for (const id in demoNodes) if (demoNodes[id].token) tokenToNode[demoNodes[id].token] = id;
+
+  function escapeRegex(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+
+  // ---------- Barre latérale ----------
+
+  const sidebarGroups = document.getElementById("sidebar-groups");
+  const sidebarButtons = {};
+
+  function buildSidebar(ds) {
+    sidebarGroups.innerHTML = "";
+    for (const k in sidebarButtons) delete sidebarButtons[k];
+
+    const domains = {};
+    for (const id in ds) {
+      const n = ds[id];
+      domains[n.domain] = domains[n.domain] || { metric: [], derived: [], raw: [] };
+      domains[n.domain][n.type].push(id);
+    }
+
+    for (const domain in domains) {
+      for (const type of ["metric", "derived", "raw"]) {
+        const ids = domains[domain][type];
+        if (!ids.length) continue;
+        const group = document.createElement("div");
+        group.className = "sidebar-group";
+        const title = document.createElement("p");
+        title.className = "sidebar-group-title";
+        title.textContent = domain + " — " + TYPE_LABEL[type] + "s";
+        const list = document.createElement("ul");
+        list.className = "sidebar-list";
+        for (const id of ids) {
+          const li = document.createElement("li");
+          const btn = document.createElement("button");
+          btn.className = "sidebar-item";
+          btn.dataset.id = id;
+          btn.dataset.name = ds[id].name.toLowerCase();
+          const dot = document.createElement("span");
+          dot.className = "sidebar-dot type-" + type;
+          btn.append(dot, document.createTextNode(ds[id].name));
+          btn.addEventListener("click", () => { history = [id]; render(); });
+          sidebarButtons[id] = btn;
+          li.appendChild(btn);
+          list.appendChild(li);
+        }
+        group.append(title, list);
+        sidebarGroups.appendChild(group);
+      }
+    }
+  }
+
+  buildSidebar(nodes);
+
+  document.getElementById("sidebar-search").addEventListener("input", (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    for (const id in sidebarButtons) {
+      const btn = sidebarButtons[id];
+      btn.closest("li").style.display = btn.dataset.name.includes(q) ? "" : "none";
+    }
+  });
+
+  document.querySelectorAll(".ds-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const key = btn.dataset.ds;
+      if (key === activeDatasetKey) return;
+      activeDatasetKey = key;
+      nodes = DATASETS[key];
+      document.querySelectorAll(".ds-btn").forEach((b) => b.classList.toggle("active", b.dataset.ds === key));
+      buildSidebar(nodes);
+      document.getElementById("sidebar-search").value = "";
+      history = [DATASET_ROOT[key]];
+      render();
+    });
+  });
+
+  // ---------- Navigation ----------
+
+  let history = ["margin_pct"];
+
+  function navigate(id, { fromCrumb = false } = {}) {
+    if (fromCrumb) {
+      const idx = history.indexOf(id);
+      history = history.slice(0, idx + 1);
+    } else if (history[history.length - 1] !== id) {
+      history.push(id);
+    }
+    render();
+  }
+
+  function renderBreadcrumb() {
+    const nav = document.getElementById("breadcrumb");
+    nav.innerHTML = "";
+    history.forEach((id, i) => {
+      if (i > 0) {
+        const sep = document.createElement("span");
+        sep.className = "crumb-sep";
+        sep.textContent = "/";
+        nav.appendChild(sep);
+      }
+      const btn = document.createElement("button");
+      const isCurrent = i === history.length - 1;
+      btn.className = "crumb" + (isCurrent ? " current" : "");
+      btn.textContent = nodes[id].short;
+      if (!isCurrent) btn.addEventListener("click", () => navigate(id, { fromCrumb: true }));
+      nav.appendChild(btn);
+    });
+  }
+
+  function formulaFragment(formula) {
+    const wrap = document.createElement("div");
+    wrap.className = "formula-text";
+    const parts = formula.split(/(\{\w+\})/g);
+    for (const part of parts) {
+      const match = part.match(/^\{(\w+)\}$/);
+      if (match) {
+        const dep = nodes[match[1]];
+        const btn = document.createElement("button");
+        btn.className = "token type-" + dep.type;
+        btn.textContent = dep.short;
+        btn.title = dep.name;
+        btn.addEventListener("click", () => navigate(match[1]));
+        wrap.appendChild(btn);
+      } else if (part.length) {
+        wrap.appendChild(document.createTextNode(part));
+      }
+    }
+    return wrap;
+  }
+
+  function sqlFragment(sqlText, selfId) {
+    const pre = document.createElement("pre");
+    const tokens = Object.keys(tokenToNode)
+      .filter((t) => tokenToNode[t] !== selfId)
+      .sort((a, b) => b.length - a.length)
+      .map(escapeRegex);
+    if (!tokens.length) { pre.textContent = sqlText; return pre; }
+    const re = new RegExp("\\b(" + tokens.join("|") + ")\\b", "g");
+    const parts = sqlText.split(re);
+    for (const part of parts) {
+      if (part === undefined || part === "") continue;
+      const depId = tokenToNode[part];
+      if (depId) {
+        const btn = document.createElement("button");
+        btn.className = "token type-" + nodes[depId].type;
+        btn.textContent = part;
+        btn.title = nodes[depId].name;
+        btn.addEventListener("click", () => navigate(depId));
+        pre.appendChild(btn);
+      } else {
+        pre.appendChild(document.createTextNode(part));
+      }
+    }
+    return pre;
+  }
+
+  // SQL réel dbt (jinja) : rend cliquables les appels ref()/source() vers d'autres nœuds.
+  function realSqlFragment(sqlText, selfId) {
+    const re = /\{\{\s*ref\(\s*['"](\w+)['"]\s*\)\s*\}\}|\{\{\s*source\(\s*['"](\w+)['"]\s*,\s*['"](\w+)['"]\s*\)\s*\}\}/g;
+    const pre = document.createElement("pre");
+    let last = 0, match;
+    while ((match = re.exec(sqlText))) {
+      if (match.index > last) pre.appendChild(document.createTextNode(sqlText.slice(last, match.index)));
+      const depId = match[1] ? match[1] : "src_" + match[3];
+      const text = match[0];
+      if (depId !== selfId && nodes[depId]) {
+        const btn = document.createElement("button");
+        btn.className = "token type-" + nodes[depId].type;
+        btn.textContent = text;
+        btn.title = nodes[depId].name;
+        btn.addEventListener("click", () => navigate(depId));
+        pre.appendChild(btn);
+      } else {
+        pre.appendChild(document.createTextNode(text));
+      }
+      last = re.lastIndex;
+    }
+    pre.appendChild(document.createTextNode(sqlText.slice(last)));
+    return pre;
+  }
+
+  function columnsSection(columns) {
+    const wrap = document.createElement("div");
+    wrap.className = "col-list";
+    for (const col of columns) {
+      const row = document.createElement("div");
+      row.className = "col-row";
+      const head = document.createElement("div");
+      head.className = "col-head";
+      const cname = document.createElement("code");
+      cname.className = "col-name";
+      cname.textContent = col.name;
+      const ctype = document.createElement("span");
+      ctype.className = "col-type";
+      ctype.textContent = col.type;
+      head.append(cname, ctype);
+      row.appendChild(head);
+      if (col.tests && col.tests.length) {
+        const testsRow = document.createElement("div");
+        testsRow.className = "col-tests";
+        for (const t of col.tests) {
+          const pill = document.createElement("span");
+          pill.className = "quality-pill";
+          const dot = document.createElement("span");
+          dot.className = "quality-dot status-" + t.status;
+          pill.append(dot, document.createTextNode(t.label));
+          testsRow.appendChild(pill);
+        }
+        row.appendChild(testsRow);
+      }
+      wrap.appendChild(row);
+    }
+    return wrap;
+  }
+
+  function chipList(ids, emptyText) {
+    if (!ids.length) {
+      const p = document.createElement("p");
+      p.className = "empty-note";
+      p.textContent = emptyText;
+      return p;
+    }
+    const ul = document.createElement("ul");
+    ul.className = "chip-list";
+    for (const id of ids) {
+      const li = document.createElement("li");
+      const btn = document.createElement("button");
+      btn.className = "chip";
+      const dot = document.createElement("span");
+      dot.className = "chip-dot type-" + nodes[id].type;
+      btn.append(dot, document.createTextNode(nodes[id].name));
+      btn.addEventListener("click", () => navigate(id));
+      li.appendChild(btn);
+      ul.appendChild(li);
+    }
+    return ul;
+  }
+
+  function section(title, contentEl) {
+    const wrap = document.createElement("div");
+    const eyebrow = document.createElement("p");
+    eyebrow.className = "eyebrow";
+    eyebrow.textContent = title;
+    wrap.append(eyebrow, contentEl);
+    return wrap;
+  }
+
+  function render() {
+    const id = history[history.length - 1];
+    const node = nodes[id];
+    renderBreadcrumb();
+
+    for (const btnId in sidebarButtons) sidebarButtons[btnId].classList.toggle("active", btnId === id);
+    const activeBtn = sidebarButtons[id];
+    if (activeBtn) activeBtn.scrollIntoView({ block: "nearest", inline: "nearest" });
+
+    const inspector = document.getElementById("inspector");
+    inspector.innerHTML = "";
+    const root = document.createElement("div");
+    root.className = "inspector-content";
+    inspector.appendChild(root);
+
+    // En-tête
+    const head = document.createElement("div");
+    head.className = "node-head";
+    const badgeRow = document.createElement("div");
+    badgeRow.className = "badge-row";
+    const typeBadge = document.createElement("span");
+    typeBadge.className = "badge type-" + node.type;
+    typeBadge.textContent = TYPE_LABEL[node.type];
+    const domainBadge = document.createElement("span");
+    domainBadge.className = "badge domain";
+    domainBadge.textContent = node.domain;
+    badgeRow.append(typeBadge, domainBadge);
+    for (const tag of node.tags || []) {
+      const t = document.createElement("span");
+      t.className = "tag-pill";
+      t.textContent = tag;
+      badgeRow.appendChild(t);
+    }
+    const name = document.createElement("h2");
+    name.className = "node-name";
+    name.textContent = node.name;
+    const desc = document.createElement("p");
+    desc.className = "node-desc";
+    desc.textContent = node.description;
+    head.append(badgeRow, name, desc);
+    root.appendChild(head);
+
+    // Ligne de faits clés (chaque champ est optionnel selon le jeu de données)
+    const facts = [];
+    if (node.owner) facts.push(node.owner);
+    if (node.source) facts.push(node.source.system + " · " + node.source.table + (node.source.column ? "." + node.source.column : ""));
+    if (node.data_type) facts.push(node.data_type);
+    if (node.materialized) facts.push("Matérialisation : " + node.materialized);
+    if (node.relation) facts.push(node.relation);
+    if (node.refresh) facts.push(node.refresh);
+    if (node.last_updated) facts.push("MAJ " + node.last_updated);
+    if (activeDatasetKey === "real") facts.push("Manifest dbt généré le " + REAL_GENERATED_AT);
+    const keyfacts = document.createElement("p");
+    keyfacts.className = "keyfacts";
+    keyfacts.textContent = facts.join("  ·  ");
+    root.appendChild(keyfacts);
+
+    // Lien vers la fiche native du système source (lecture seule ici : la modification
+    // passe par l'ERP, qui applique ses propres règles métier — pas d'écriture directe en base).
+    if (node.source) {
+      const link = document.createElement("button");
+      link.className = "ext-link";
+      link.type = "button";
+      link.disabled = true;
+      link.title = "Démo : pointerait vers la fiche d'édition native dans " + node.source.system;
+      link.textContent = "↗ Ouvrir dans " + node.source.system;
+      root.appendChild(link);
+    }
+
+    // Qualité des données (métrique/calcul démo) — pour le projet réel, les tests
+    // apparaissent au niveau de chaque colonne, dans la section Colonnes ci-dessous.
+    if (node.quality && node.quality.length) {
+      const qRow = document.createElement("div");
+      qRow.className = "quality-row";
+      for (const check of node.quality) {
+        const pill = document.createElement("span");
+        pill.className = "quality-pill";
+        const dot = document.createElement("span");
+        dot.className = "quality-dot status-" + check.status;
+        pill.append(dot, document.createTextNode(check.note ? check.label + " — " + check.note : check.label));
+        qRow.appendChild(pill);
+      }
+      root.appendChild(qRow);
+    }
+
+    // Formule
+    if (node.formula) {
+      const bar = document.createElement("div");
+      bar.className = "formula-bar";
+      bar.appendChild(formulaFragment(node.formula));
+      root.appendChild(section("Formule", bar));
+    }
+
+    // Colonnes (projet réel : structure de la table telle qu'introspectée)
+    if (node.columns && node.columns.length) {
+      root.appendChild(section("Colonnes", columnsSection(node.columns)));
+    }
+
+    // Détails techniques (repliés) : SQL + valeurs observées
+    if (node.sql || node.example) {
+      const details = document.createElement("details");
+      details.className = "tech-details";
+      const summary = document.createElement("summary");
+      summary.textContent = "Détails techniques";
+      const body = document.createElement("div");
+      body.className = "tech-body";
+      if (node.sql) {
+        const bar = document.createElement("div");
+        bar.className = "sql-block";
+        bar.appendChild(node.sqlKind === "jinja" ? realSqlFragment(node.sql, id) : sqlFragment(node.sql, id));
+        body.appendChild(section("Définition SQL", bar));
+      }
+      if (node.example) {
+        const row = document.createElement("div");
+        row.className = "example-row";
+        for (const v of node.example) {
+          const pill = document.createElement("span");
+          pill.className = "example-pill";
+          pill.textContent = v;
+          row.appendChild(pill);
+        }
+        body.appendChild(section("Valeurs observées", row));
+      }
+      details.append(summary, body);
+      root.appendChild(details);
+    }
+
+    // Dépend de / Référencé par
+    const relGrid = document.createElement("div");
+    relGrid.className = "rel-grid";
+
+    if (node.deps.length || !node.source) {
+      const col = document.createElement("div");
+      col.className = "rel-col";
+      const eyebrow = document.createElement("p");
+      eyebrow.className = "eyebrow";
+      eyebrow.textContent = "Dépend de";
+      col.append(eyebrow, chipList(node.deps, "Aucune dépendance."));
+      relGrid.appendChild(col);
+    }
+
+    const parents = usedBy(id);
+    const col2 = document.createElement("div");
+    col2.className = "rel-col";
+    const eyebrow2 = document.createElement("p");
+    eyebrow2.className = "eyebrow";
+    eyebrow2.textContent = "Référencé par";
+    col2.append(eyebrow2, chipList(parents, "N'entre dans le calcul d'aucun autre indicateur listé ici."));
+    relGrid.appendChild(col2);
+
+    root.appendChild(relGrid);
+  }
+
+  render();
+</script>
