@@ -581,6 +581,29 @@
 
   .col-tests { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.4rem; }
 
+  .col-upstream { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-top: 0.4rem; }
+
+  .col-upstream-label {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+  }
+
+  .col-upstream-chip {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.76rem;
+    padding: 0.16rem 0.5rem;
+    border-radius: 999px;
+    border: 1px solid currentColor;
+    background: none;
+    cursor: pointer;
+  }
+
+  .col-upstream-chip.type-metric { color: var(--metric); }
+  .col-upstream-chip.type-derived { color: var(--derived); }
+  .col-upstream-chip.type-raw { color: var(--raw); }
+  .col-upstream-chip:hover { background: var(--surface-alt); }
+
   .rel-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.5rem; padding-top: 0.25rem; border-top: 1px solid var(--border); }
   .rel-col { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
   .rel-col .eyebrow { margin-top: 0.9rem; }
@@ -1113,22 +1136,46 @@
             "label": "Intégrité référentielle",
             "status": "ok"
           }
+        ],
+        "upstream": [
+          {
+            "node": "stg_customers",
+            "column": "customer_key"
+          }
         ]
       },
       {
         "name": "email",
         "type": "text",
-        "tests": []
+        "tests": [],
+        "upstream": [
+          {
+            "node": "stg_customers",
+            "column": "email"
+          }
+        ]
       },
       {
         "name": "full_name",
         "type": "text",
-        "tests": []
+        "tests": [],
+        "upstream": [
+          {
+            "node": "stg_customers",
+            "column": "full_name"
+          }
+        ]
       },
       {
         "name": "country",
         "type": "text",
-        "tests": []
+        "tests": [],
+        "upstream": [
+          {
+            "node": "stg_customers",
+            "column": "country"
+          }
+        ]
       }
     ]
   },
@@ -1162,32 +1209,68 @@
             "label": "Intégrité référentielle",
             "status": "ok"
           }
+        ],
+        "upstream": [
+          {
+            "node": "stg_orders",
+            "column": "order_date"
+          }
         ]
       },
       {
         "name": "date",
         "type": "date",
-        "tests": []
+        "tests": [],
+        "upstream": [
+          {
+            "node": "stg_orders",
+            "column": "order_date"
+          }
+        ]
       },
       {
         "name": "annee",
         "type": "integer",
-        "tests": []
+        "tests": [],
+        "upstream": [
+          {
+            "node": "stg_orders",
+            "column": "order_date"
+          }
+        ]
       },
       {
         "name": "trimestre",
         "type": "integer",
-        "tests": []
+        "tests": [],
+        "upstream": [
+          {
+            "node": "stg_orders",
+            "column": "order_date"
+          }
+        ]
       },
       {
         "name": "mois_num",
         "type": "integer",
-        "tests": []
+        "tests": [],
+        "upstream": [
+          {
+            "node": "stg_orders",
+            "column": "order_date"
+          }
+        ]
       },
       {
         "name": "annee_mois",
         "type": "text",
-        "tests": []
+        "tests": [],
+        "upstream": [
+          {
+            "node": "stg_orders",
+            "column": "order_date"
+          }
+        ]
       }
     ]
   },
@@ -1221,32 +1304,68 @@
             "label": "Intégrité référentielle",
             "status": "ok"
           }
+        ],
+        "upstream": [
+          {
+            "node": "stg_products",
+            "column": "product_key"
+          }
         ]
       },
       {
         "name": "sku",
         "type": "text",
-        "tests": []
+        "tests": [],
+        "upstream": [
+          {
+            "node": "stg_products",
+            "column": "sku"
+          }
+        ]
       },
       {
         "name": "product_name",
         "type": "text",
-        "tests": []
+        "tests": [],
+        "upstream": [
+          {
+            "node": "stg_products",
+            "column": "product_name"
+          }
+        ]
       },
       {
         "name": "category",
         "type": "text",
-        "tests": []
+        "tests": [],
+        "upstream": [
+          {
+            "node": "stg_products",
+            "column": "category"
+          }
+        ]
       },
       {
         "name": "price",
         "type": "numeric(10,2)",
-        "tests": []
+        "tests": [],
+        "upstream": [
+          {
+            "node": "stg_products",
+            "column": "price"
+          }
+        ]
       },
       {
         "name": "is_active",
         "type": "boolean",
-        "tests": []
+        "tests": [],
+        "upstream": [
+          {
+            "node": "stg_products",
+            "column": "is_active"
+          }
+        ]
       }
     ]
   },
@@ -1280,22 +1399,50 @@
             "label": "Intégrité référentielle",
             "status": "ok"
           }
+        ],
+        "upstream": [
+          {
+            "node": "src_customer",
+            "column": "id"
+          }
         ]
       },
       {
         "name": "email",
         "type": "text",
-        "tests": []
+        "tests": [],
+        "upstream": [
+          {
+            "node": "src_customer",
+            "column": "email"
+          }
+        ]
       },
       {
         "name": "full_name",
         "type": "text",
-        "tests": []
+        "tests": [],
+        "upstream": [
+          {
+            "node": "src_customer",
+            "column": "last_name"
+          },
+          {
+            "node": "src_customer",
+            "column": "first_name"
+          }
+        ]
       },
       {
         "name": "country",
         "type": "text",
-        "tests": []
+        "tests": [],
+        "upstream": [
+          {
+            "node": "src_customer",
+            "column": "country"
+          }
+        ]
       }
     ]
   },
@@ -1329,6 +1476,12 @@
             "label": "Intégrité référentielle",
             "status": "ok"
           }
+        ],
+        "upstream": [
+          {
+            "node": "src_orders",
+            "column": "id"
+          }
         ]
       },
       {
@@ -1343,17 +1496,35 @@
             "label": "Intégrité référentielle",
             "status": "ok"
           }
+        ],
+        "upstream": [
+          {
+            "node": "src_orders",
+            "column": "customer_id"
+          }
         ]
       },
       {
         "name": "order_date",
         "type": "timestamp with time zone",
-        "tests": []
+        "tests": [],
+        "upstream": [
+          {
+            "node": "src_orders",
+            "column": "order_date"
+          }
+        ]
       },
       {
         "name": "status",
         "type": "text",
-        "tests": []
+        "tests": [],
+        "upstream": [
+          {
+            "node": "src_orders",
+            "column": "status"
+          }
+        ]
       }
     ]
   },
@@ -1383,6 +1554,12 @@
             "label": "Intégrité référentielle",
             "status": "ok"
           }
+        ],
+        "upstream": [
+          {
+            "node": "src_order_item",
+            "column": "order_id"
+          }
         ]
       },
       {
@@ -1397,6 +1574,12 @@
             "label": "Intégrité référentielle",
             "status": "ok"
           }
+        ],
+        "upstream": [
+          {
+            "node": "src_order_item",
+            "column": "product_id"
+          }
         ]
       },
       {
@@ -1407,17 +1590,39 @@
             "label": "Valeurs non nulles",
             "status": "ok"
           }
+        ],
+        "upstream": [
+          {
+            "node": "src_order_item",
+            "column": "quantity"
+          }
         ]
       },
       {
         "name": "unit_price",
         "type": "numeric(10,2)",
-        "tests": []
+        "tests": [],
+        "upstream": [
+          {
+            "node": "src_order_item",
+            "column": "unit_price"
+          }
+        ]
       },
       {
         "name": "line_amount",
         "type": "numeric",
-        "tests": []
+        "tests": [],
+        "upstream": [
+          {
+            "node": "src_order_item",
+            "column": "unit_price"
+          },
+          {
+            "node": "src_order_item",
+            "column": "quantity"
+          }
+        ]
       }
     ]
   },
@@ -1452,32 +1657,68 @@
             "label": "Intégrité référentielle",
             "status": "ok"
           }
+        ],
+        "upstream": [
+          {
+            "node": "src_product",
+            "column": "id"
+          }
         ]
       },
       {
         "name": "sku",
         "type": "text",
-        "tests": []
+        "tests": [],
+        "upstream": [
+          {
+            "node": "src_product",
+            "column": "sku"
+          }
+        ]
       },
       {
         "name": "product_name",
         "type": "text",
-        "tests": []
+        "tests": [],
+        "upstream": [
+          {
+            "node": "src_product",
+            "column": "name"
+          }
+        ]
       },
       {
         "name": "category",
         "type": "text",
-        "tests": []
+        "tests": [],
+        "upstream": [
+          {
+            "node": "src_category",
+            "column": "name"
+          }
+        ]
       },
       {
         "name": "price",
         "type": "numeric(10,2)",
-        "tests": []
+        "tests": [],
+        "upstream": [
+          {
+            "node": "src_product",
+            "column": "price"
+          }
+        ]
       },
       {
         "name": "is_active",
         "type": "boolean",
-        "tests": []
+        "tests": [],
+        "upstream": [
+          {
+            "node": "src_product",
+            "column": "is_active"
+          }
+        ]
       }
     ]
   },
@@ -1504,6 +1745,12 @@
             "label": "Valeurs non nulles",
             "status": "ok"
           }
+        ],
+        "upstream": [
+          {
+            "node": "stg_order_items",
+            "column": "order_id"
+          }
         ]
       },
       {
@@ -1513,6 +1760,12 @@
           {
             "label": "Intégrité référentielle",
             "status": "ok"
+          }
+        ],
+        "upstream": [
+          {
+            "node": "stg_orders",
+            "column": "customer_key"
           }
         ]
       },
@@ -1528,6 +1781,12 @@
             "label": "Intégrité référentielle",
             "status": "ok"
           }
+        ],
+        "upstream": [
+          {
+            "node": "stg_order_items",
+            "column": "product_key"
+          }
         ]
       },
       {
@@ -1537,6 +1796,12 @@
           {
             "label": "Intégrité référentielle",
             "status": "ok"
+          }
+        ],
+        "upstream": [
+          {
+            "node": "stg_orders",
+            "column": "order_date"
           }
         ]
       },
@@ -1552,6 +1817,12 @@
             "label": "Valeurs autorisées : pending, paid, shipped, delivered, cancelled",
             "status": "ok"
           }
+        ],
+        "upstream": [
+          {
+            "node": "stg_orders",
+            "column": "status"
+          }
         ]
       },
       {
@@ -1562,12 +1833,24 @@
             "label": "Valeurs non nulles",
             "status": "ok"
           }
+        ],
+        "upstream": [
+          {
+            "node": "stg_order_items",
+            "column": "quantity"
+          }
         ]
       },
       {
         "name": "unit_price",
         "type": "numeric(10,2)",
-        "tests": []
+        "tests": [],
+        "upstream": [
+          {
+            "node": "stg_order_items",
+            "column": "unit_price"
+          }
+        ]
       },
       {
         "name": "line_amount",
@@ -1576,6 +1859,12 @@
           {
             "label": "Valeurs non nulles",
             "status": "ok"
+          }
+        ],
+        "upstream": [
+          {
+            "node": "stg_order_items",
+            "column": "line_amount"
           }
         ]
       }
@@ -3150,6 +3439,24 @@
           testsRow.appendChild(pill);
         }
         row.appendChild(testsRow);
+      }
+      if (col.upstream && col.upstream.length) {
+        const upRow = document.createElement("div");
+        upRow.className = "col-upstream";
+        const arrow = document.createElement("span");
+        arrow.className = "col-upstream-label";
+        arrow.textContent = "← dérive de";
+        upRow.appendChild(arrow);
+        col.upstream.forEach((u) => {
+          const chip = document.createElement("button");
+          chip.type = "button";
+          chip.className = "col-upstream-chip type-" + (nodes[u.node] ? nodes[u.node].type : "raw");
+          chip.textContent = (nodes[u.node] ? nodes[u.node].short : u.node) + "." + u.column;
+          chip.title = "Colonne-à-colonne (sqlglot) — aller à " + (nodes[u.node] ? nodes[u.node].name : u.node);
+          if (nodes[u.node]) chip.addEventListener("click", () => navigate(u.node));
+          upRow.appendChild(chip);
+        });
+        row.appendChild(upRow);
       }
       wrap.appendChild(row);
     }

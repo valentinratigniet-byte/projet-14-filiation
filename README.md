@@ -26,19 +26,33 @@ flowchart LR
     subgraph P10["Projet 10 — dbt_ecommerce"]
         MAN["manifest.json<br/>+ catalog.json<br/>+ run_results.json"]
     end
-    MAN -->|extract_filiation.py| JS["bloc realNodes<br/>(JS)"]
+    MAN -->|"extract_filiation.py<br/>(+ sqlglot pour le SQL compilé)"| JS["realNodes + SNAPSHOTS<br/>(JS)"]
     JS -->|régénère| HTML["index.html<br/>(Filiation)"]
+    JS -->|historise| SNAP[("snapshots/*.json")]
+    SNAP -.->|vue Dérive| HTML
     HTML -->|clic formule/SQL/colonne| HTML
 
     style HTML fill:#137A8B,color:#fff
     style MAN fill:#E4A93C,color:#1a1a1a
 ```
 
-Pour chaque élément du jeu réel : schéma et types de colonnes, dépendances
-(`ref()`/`source()` cliquables directement dans le vrai SQL dbt), et les tests
-dbt réels avec leur statut du dernier run (unicité, non-nullité, intégrité
-référentielle, valeurs autorisées). Là où dbt n'a pas de description, la page
-l'affiche honnêtement plutôt que d'improviser un texte.
+Quatre façons de regarder le lignage, dans le même outil :
+
+1. **Fiche** — un nœud à la fois : formule ou SQL réel (colonnes cliquables),
+   propriétaire/fraîcheur, qualité, dépendances directes, et pour le jeu réel
+   la structure de la table (colonnes + types + tests) et, colonne par
+   colonne, **la colonne source exacte dont elle dérive** — lignage
+   colonne-à-colonne réel, calculé par [sqlglot](https://github.com/tobymao/sqlglot)
+   sur le SQL compilé (pas juste "ce modèle dépend de ce modèle").
+2. **Graphe complet** — vue d'ensemble zoomable de tout le lignage (layout en
+   couches + heuristique anti-croisements), et une case **Analyse d'impact**
+   qui surligne en cascade tout ce qui dépend d'un nœud sélectionné.
+3. **Dérive** — compare deux instantanés historisés (`snapshots/*.json`) et
+   liste ce qui a changé : modèles/sources ajoutés ou supprimés, colonnes
+   ajoutées/supprimées/retypées, tests dbt ajoutés ou supprimés.
+
+Là où dbt n'a pas de description, la page l'affiche honnêtement plutôt que
+d'improviser un texte.
 
 Toute modification passe par le système source : chaque donnée brute affiche
 un renvoi (maquette) vers sa fiche native plutôt qu'un formulaire d'édition
@@ -53,6 +67,8 @@ qu'une écriture directe en base contournerait.
 | Démo (fictif) | 15 | 2 domaines, 5 niveaux de profondeur |
 | Projet réel (dbt_ecommerce) | 13 | 5 sources + 4 staging + 3 dimensions + 1 fait |
 | Tests dbt affichés (jeu réel) | 28 | statut réel du dernier `dbt run` — 28/28 PASS |
+| Colonnes avec lignage colonne-à-colonne | 33 | résolu par sqlglot sur le SQL compilé, y compris à travers CTE/joins/`generate_series` |
+| Instantanés historisés | 2 | 1 extraction réelle + 1 exemple simulé (illustratif, pour démontrer la vue Dérive) |
 
 ## 🗂️ Contenu
 
@@ -60,8 +76,10 @@ qu'une écriture directe en base contournerait.
 projet-14-filiation/
 ├── README.md
 ├── index.html                    ← l'outil, page unique auto-suffisante
+├── requirements.txt               ← sqlglot (lignage colonne-à-colonne)
+├── snapshots/                     ← historique d'extractions (pour la vue Dérive)
 └── scripts/
-    └── extract_filiation.py      ← régénère le bloc "Projet réel" depuis un target/ dbt
+    └── extract_filiation.py      ← régénère index.html + historise un instantané depuis un target/ dbt
 ```
 
 ## 🚀 Lancer / régénérer
@@ -75,11 +93,17 @@ cd projet-10-pipeline-elt/dbt_ecommerce
 dbt run && dbt test && dbt docs generate   # régénère target/manifest.json, catalog.json, run_results.json
 
 cd ../../projet-14-filiation
-python scripts/extract_filiation.py        # relit target/ et met à jour index.html
+pip install -r requirements.txt            # sqlglot, une fois
+python scripts/extract_filiation.py        # relit target/, met à jour index.html, historise un instantané
 ```
 
-Le script accepte `--target` (autre dossier `target/` dbt) et `--html` (autre
-fichier à mettre à jour) pour pointer vers un autre projet dbt.
+Chaque exécution ajoute un instantané dans `snapshots/` (dédupliqué sur le
+`generated_at` du manifest) — après deux `dbt run` réels, la vue Dérive
+compare directement le vrai avant/après au lieu de l'exemple simulé fourni.
+
+Le script accepte `--target` (autre dossier `target/` dbt), `--html` (autre
+fichier à mettre à jour) et `--label` (nom lisible de l'instantané) pour
+pointer vers un autre projet dbt.
 
 ## ⚠️ Limite assumée
 

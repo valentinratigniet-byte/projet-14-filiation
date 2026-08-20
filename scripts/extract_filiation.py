@@ -19,6 +19,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from sqlglot.lineage import lineage
+
 sys.stdout.reconfigure(encoding="utf-8")
 
 HERE = Path(__file__).resolve().parent
@@ -55,11 +57,66 @@ def build_tests_index(manifest: dict, run_results: dict) -> dict[tuple[str, str 
     return tests_by_target
 
 
-def columns_data(columns: dict, tests_by_target: dict, uid: str) -> list[dict]:
-    return [
-        {"name": cname, "type": cv["type"], "tests": tests_by_target.get((uid, cname), [])}
-        for cname, cv in sorted(columns.items(), key=lambda kv: kv[1]["index"])
-    ]
+def columns_data(columns: dict, tests_by_target: dict, uid: str, upstream_by_col: dict | None = None) -> list[dict]:
+    upstream_by_col = upstream_by_col or {}
+    result = []
+    for cname, cv in sorted(columns.items(), key=lambda kv: kv[1]["index"]):
+        entry = {"name": cname, "type": cv["type"], "tests": tests_by_target.get((uid, cname), [])}
+        if cname in upstream_by_col:
+            entry["upstream"] = upstream_by_col[cname]
+        result.append(entry)
+    return result
+
+
+def build_schema_and_table_map(manifest: dict, catalog: dict) -> tuple[dict, dict[str, str]]:
+    """Schéma (database -> schema -> table -> {colonne: type}) pour sqlglot,
+    et une table de correspondance nom de table réelle -> id de nœud interne."""
+    schema: dict[str, Any] = {}
+    table_to_id: dict[str, str] = {}
+
+    def add(db: str, sch: str, table: str, cols: dict, node_id: str) -> None:
+        schema.setdefault(db, {}).setdefault(sch, {})[table] = {c: (v["type"] or "text") for c, v in cols.items()}
+        table_to_id[table] = node_id
+
+    for uid, v in manifest["sources"].items():
+        cols = catalog["sources"].get(uid, {}).get("columns", {})
+        add(v["database"], v["schema"], v["identifier"], cols, "src_" + v["name"])
+
+    for uid, v in manifest["nodes"].items():
+        if v["resource_type"] != "model":
+            continue
+        cols = catalog["nodes"].get(uid, {}).get("columns", {})
+        add(v["database"], v["schema"], v.get("alias") or v["name"], cols, v["name"])
+
+    return schema, table_to_id
+
+
+def compute_upstream(compiled_sql: str | None, colnames: list[str], schema: dict, table_to_id: dict[str, str]) -> dict[str, list[dict]]:
+    """Lignage colonne-à-colonne réel (sqlglot) : pour chaque colonne de sortie,
+    remonte jusqu'aux colonnes sources dont elle dérive. Best-effort : une colonne
+    dont le lignage ne peut pas être résolu (fonction non supportée, etc.) est
+    simplement omise plutôt que de faire échouer toute l'extraction."""
+    if not compiled_sql:
+        return {}
+    result: dict[str, list[dict]] = {}
+    for col in colnames:
+        try:
+            root = lineage(col, compiled_sql, schema=schema, dialect="postgres")
+        except Exception:
+            continue
+        pairs, seen = [], set()
+        for leaf in root.walk():
+            if leaf.downstream or leaf.expression.__class__.__name__ != "Table":
+                continue
+            node_id = table_to_id.get(leaf.expression.name)
+            col_name = leaf.name.split(".")[-1]
+            if not node_id or (node_id, col_name) in seen:
+                continue
+            seen.add((node_id, col_name))
+            pairs.append({"node": node_id, "column": col_name})
+        if pairs:
+            result[col] = pairs
+    return result
 
 
 def extract_nodes(target_dir: Path) -> tuple[dict[str, Any], str]:
@@ -68,6 +125,7 @@ def extract_nodes(target_dir: Path) -> tuple[dict[str, Any], str]:
     catalog = json.loads((target_dir / "catalog.json").read_text(encoding="utf-8"))
     run_results = json.loads((target_dir / "run_results.json").read_text(encoding="utf-8"))
     tests_by_target = build_tests_index(manifest, run_results)
+    schema, table_to_id = build_schema_and_table_map(manifest, catalog)
 
     nodes: dict[str, Any] = {}
 
@@ -93,6 +151,7 @@ def extract_nodes(target_dir: Path) -> tuple[dict[str, Any], str]:
         name = v["name"]
         cat_cols = catalog["nodes"].get(uid, {}).get("columns", {})
         deps = [r["name"] for r in v.get("refs", [])] + ["src_" + s[1] for s in v.get("sources", [])]
+        upstream_by_col = compute_upstream(v.get("compiled_code"), list(cat_cols.keys()), schema, table_to_id)
         nodes[name] = {
             "domain": LAYER.get(v.get("schema"), v.get("schema")),
             "type": "derived",
@@ -104,7 +163,7 @@ def extract_nodes(target_dir: Path) -> tuple[dict[str, Any], str]:
             "relation": v["database"] + "." + v["schema"] + "." + (v.get("alias") or name),
             "sqlKind": "jinja",
             "sql": v.get("raw_code", ""),
-            "columns": columns_data(cat_cols, tests_by_target, uid),
+            "columns": columns_data(cat_cols, tests_by_target, uid, upstream_by_col),
         }
 
     return nodes, manifest["metadata"]["generated_at"]
