@@ -125,6 +125,54 @@
     font-weight: 600;
   }
 
+  .role-picker { display: flex; flex-direction: column; }
+
+  .role-picker select {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 0.85rem;
+    padding: 0.5rem 0.6rem;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    width: 100%;
+  }
+
+  .role-note {
+    margin: 0.4rem 0 0;
+    font-size: 0.76rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  .locked-chip {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    font-size: 0.87rem;
+    color: var(--text-muted);
+    padding: 0.4rem 0.5rem;
+    margin: 0 -0.5rem;
+    cursor: not-allowed;
+  }
+
+  .locked-chip .chip-dot { opacity: 0.4; }
+  .locked-chip .lock-mark { font-size: 0.75rem; }
+
+  .token.is-locked {
+    cursor: not-allowed;
+    opacity: 0.55;
+    border-bottom-style: dashed;
+  }
+
+  .role-empty {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    line-height: 1.6;
+    max-width: 50ch;
+  }
+
   .sidebar-search {
     font-family: "IBM Plex Sans", sans-serif;
     font-size: 0.85rem;
@@ -764,6 +812,11 @@
       <button type="button" class="ds-btn active" data-ds="demo">Démo</button>
       <button type="button" class="ds-btn" data-ds="real" title="Introspecté depuis le projet dbt réel dbt_ecommerce (portfolio-data/projet-10)">Projet réel</button>
     </div>
+    <label class="role-picker">
+      <span class="sidebar-group-title" style="display:block;margin:0 0 0.15rem;">Rôle</span>
+      <select id="role-select" aria-label="Rôle courant"></select>
+    </label>
+    <p class="role-note" id="role-note"></p>
     <input class="sidebar-search" id="sidebar-search" type="search" placeholder="Filtrer…" aria-label="Filtrer les éléments">
     <div class="sidebar-groups" id="sidebar-groups"></div>
   </aside>
@@ -1036,6 +1089,9 @@
         "tests": []
       }
     ],
+    "tags": [
+      "Donnée personnelle (RGPD)"
+    ],
     "rowCount": 5000
   },
   "src_category": {
@@ -1299,6 +1355,9 @@
           }
         ]
       }
+    ],
+    "tags": [
+      "Donnée personnelle (RGPD)"
     ],
     "rowCount": 5000
   },
@@ -1576,6 +1635,9 @@
         ]
       }
     ],
+    "tags": [
+      "Donnée personnelle (RGPD)"
+    ],
     "rowCount": 5000
   },
   "stg_orders": {
@@ -1753,11 +1815,11 @@
         "upstream": [
           {
             "node": "src_order_item",
-            "column": "quantity"
+            "column": "unit_price"
           },
           {
             "node": "src_order_item",
-            "column": "unit_price"
+            "column": "quantity"
           }
         ]
       }
@@ -3368,6 +3430,56 @@
   let nodes = demoNodes;
   let activeDatasetKey = "demo";
 
+  // ---------- Rôles ----------
+  // Simulation de visibilité côté client, à but pédagogique — PAS un contrôle
+  // d'accès réel : cette page est un fichier statique, sans backend ni
+  // authentification, donc n'importe qui peut lire la source et voir toutes
+  // les données quel que soit le rôle affiché. Un vrai portail rejouerait ces
+  // règles côté serveur.
+  const ROLES = {
+    admin: {
+      label: "Administrateur",
+      note: "Accès complet, y compris les outils de correction.",
+      canSeeNode: () => true,
+      sections: { formula: true, sql: true, columns: true, correction: true, graphe: true, derive: true, systemes: true },
+    },
+    it: {
+      label: "Informatique",
+      note: "Accès technique complet (SQL, colonnes, lignage, systèmes).",
+      canSeeNode: () => true,
+      sections: { formula: true, sql: true, columns: true, correction: true, graphe: true, derive: true, systemes: true },
+    },
+    exploitation: {
+      label: "Exploitation",
+      note: "Qualité, fraîcheur, volumétrie, systèmes — pas la logique de calcul (formule/SQL masqués).",
+      canSeeNode: () => true,
+      sections: { formula: false, sql: false, columns: true, correction: false, graphe: true, derive: true, systemes: true },
+    },
+    pdg: {
+      label: "PDG",
+      note: "Uniquement les indicateurs business, aucun détail technique.",
+      canSeeNode: (n) => n.type === "metric",
+      sections: { formula: true, sql: false, columns: false, correction: false, graphe: false, derive: false, systemes: false },
+    },
+    rh: {
+      label: "RH",
+      note: "Uniquement les éléments contenant des données personnelles (RGPD) — besoin d'en connaître.",
+      canSeeNode: (n) => (n.tags || []).includes("Donnée personnelle (RGPD)"),
+      sections: { formula: false, sql: false, columns: true, correction: false, graphe: false, derive: false, systemes: false },
+    },
+  };
+  let currentRole = "admin";
+
+  function canSeeNode(id) {
+    const n = nodes[id];
+    return !!n && ROLES[currentRole].canSeeNode(n);
+  }
+
+  function firstVisibleId(ds) {
+    for (const id in ds) if (ROLES[currentRole].canSeeNode(ds[id])) return id;
+    return null;
+  }
+
   function usedBy(id) {
     return Object.keys(nodes).filter((otherId) => nodes[otherId].deps.includes(id));
   }
@@ -3390,6 +3502,7 @@
     const domains = {};
     for (const id in ds) {
       const n = ds[id];
+      if (!ROLES[currentRole].canSeeNode(n)) continue;
       domains[n.domain] = domains[n.domain] || { metric: [], derived: [], raw: [] };
       domains[n.domain][n.type].push(id);
     }
@@ -3444,17 +3557,58 @@
       document.querySelectorAll(".ds-btn").forEach((b) => b.classList.toggle("active", b.dataset.ds === key));
       buildSidebar(nodes);
       document.getElementById("sidebar-search").value = "";
-      history = [DATASET_ROOT[key]];
+      const root = ROLES[currentRole].canSeeNode(nodes[DATASET_ROOT[key]]) ? DATASET_ROOT[key] : firstVisibleId(nodes);
+      history = root ? [root] : [];
       graphFocusId = null;
       if (currentView === "graphe") renderGraphView(); else render();
     });
   });
+
+  // ---------- Rôle : sélecteur ----------
+
+  const roleSelect = document.getElementById("role-select");
+  for (const key in ROLES) {
+    const opt = document.createElement("option");
+    opt.value = key;
+    opt.textContent = ROLES[key].label;
+    roleSelect.appendChild(opt);
+  }
+  roleSelect.value = currentRole;
+  document.getElementById("role-note").textContent = ROLES[currentRole].note;
+
+  function applyRoleTabVisibility() {
+    const sections = ROLES[currentRole].sections;
+    document.querySelector('[data-view="graphe"]').hidden = !sections.graphe;
+    document.querySelector('[data-view="derive"]').hidden = !sections.derive;
+    document.querySelector('[data-view="systemes"]').hidden = !sections.systemes;
+    if ((currentView === "graphe" && !sections.graphe) || (currentView === "derive" && !sections.derive) || (currentView === "systemes" && !sections.systemes)) {
+      switchView("fiche");
+    }
+  }
+
+  roleSelect.addEventListener("change", () => {
+    currentRole = roleSelect.value;
+    document.getElementById("role-note").textContent = ROLES[currentRole].note;
+    buildSidebar(nodes);
+    document.getElementById("sidebar-search").value = "";
+    applyRoleTabVisibility();
+    const root = firstVisibleId(nodes);
+    history = root ? [root] : [];
+    graphFocusId = null;
+    if (currentView === "graphe") renderGraphView();
+    else if (currentView === "derive") populateDeriveSelects();
+    else if (currentView === "systemes") renderSystemsView();
+    else render();
+  });
+
+  applyRoleTabVisibility();
 
   // ---------- Navigation ----------
 
   let history = ["margin_pct"];
 
   function navigate(id, { fromCrumb = false } = {}) {
+    if (!fromCrumb && !canSeeNode(id)) return;
     if (fromCrumb) {
       const idx = history.indexOf(id);
       history = history.slice(0, idx + 1);
@@ -3492,10 +3646,11 @@
       if (match) {
         const dep = nodes[match[1]];
         const btn = document.createElement("button");
-        btn.className = "token type-" + dep.type;
+        const visible = canSeeNode(match[1]);
+        btn.className = "token type-" + dep.type + (visible ? "" : " is-locked");
         btn.textContent = dep.short;
-        btn.title = dep.name;
-        btn.addEventListener("click", () => navigate(match[1]));
+        btn.title = visible ? dep.name : "Accès restreint pour le rôle " + ROLES[currentRole].label;
+        if (visible) btn.addEventListener("click", () => navigate(match[1]));
         wrap.appendChild(btn);
       } else if (part.length) {
         wrap.appendChild(document.createTextNode(part));
@@ -3694,13 +3849,26 @@
     ul.className = "chip-list";
     for (const id of ids) {
       const li = document.createElement("li");
-      const btn = document.createElement("button");
-      btn.className = "chip";
-      const dot = document.createElement("span");
-      dot.className = "chip-dot type-" + nodes[id].type;
-      btn.append(dot, document.createTextNode(nodes[id].name));
-      btn.addEventListener("click", () => navigate(id));
-      li.appendChild(btn);
+      if (canSeeNode(id)) {
+        const btn = document.createElement("button");
+        btn.className = "chip";
+        const dot = document.createElement("span");
+        dot.className = "chip-dot type-" + nodes[id].type;
+        btn.append(dot, document.createTextNode(nodes[id].name));
+        btn.addEventListener("click", () => navigate(id));
+        li.appendChild(btn);
+      } else {
+        const locked = document.createElement("span");
+        locked.className = "locked-chip";
+        locked.title = "Accès restreint pour le rôle " + ROLES[currentRole].label;
+        const dot = document.createElement("span");
+        dot.className = "chip-dot type-" + nodes[id].type;
+        const lock = document.createElement("span");
+        lock.className = "lock-mark";
+        lock.textContent = "🔒";
+        locked.append(dot, document.createTextNode(nodes[id].name), lock);
+        li.appendChild(locked);
+      }
       ul.appendChild(li);
     }
     return ul;
@@ -3798,17 +3966,20 @@
 
     function drawBox(pos, isCenter, clickable) {
       const type = nodes[pos.id].type;
+      const visible = canSeeNode(pos.id);
+      clickable = clickable && visible;
       const g = svgEl("g", { class: "lineage-node" + (clickable ? " is-clickable" : "") });
       const rect = svgEl("rect", {
         x: pos.x, y: pos.y, width: pos.w, height: pos.h, rx: 7, class: "lineage-rect",
-        style: `fill: var(--${type}-soft); stroke: var(--${type}); stroke-width: ${isCenter ? 2 : 1.2}px;`,
+        style: `fill: var(--${type}-soft); stroke: var(--${type}); stroke-width: ${isCenter ? 2 : 1.2}px; opacity: ${visible ? 1 : 0.45};`,
       });
       const text = svgEl("text", {
         x: pos.x + pos.w / 2, y: pos.y + pos.h / 2 + 4, "text-anchor": "middle",
-        style: `font-family: 'IBM Plex Mono', monospace; font-size: 11px; fill: var(--${type}); font-weight: ${isCenter ? 700 : 500};`,
+        style: `font-family: 'IBM Plex Mono', monospace; font-size: 11px; fill: var(--${type}); font-weight: ${isCenter ? 700 : 500}; opacity: ${visible ? 1 : 0.45};`,
       });
       text.textContent = nodes[pos.id].short;
       g.append(rect, text);
+      if (!visible) g.setAttribute("aria-label", "Accès restreint pour le rôle " + ROLES[currentRole].label);
       if (clickable) {
         g.setAttribute("tabindex", "0");
         g.setAttribute("role", "button");
@@ -4411,6 +4582,21 @@
 
   function render() {
     const id = history[history.length - 1];
+    const inspector = document.getElementById("inspector");
+
+    if (!id || !canSeeNode(id)) {
+      document.getElementById("breadcrumb").innerHTML = "";
+      for (const btnId in sidebarButtons) sidebarButtons[btnId].classList.remove("active");
+      inspector.innerHTML = "";
+      const p = document.createElement("p");
+      p.className = "role-empty";
+      p.textContent = "Aucun élément accessible avec le rôle " + ROLES[currentRole].label + " sur ce jeu de données. " +
+        (currentRole === "pdg" ? "Ce projet ne modélise encore aucun indicateur business (type \"metric\") — seulement des tables techniques." :
+         currentRole === "rh" ? "Aucun élément n'est marqué \"Donnée personnelle (RGPD)\" ici." : "");
+      inspector.appendChild(p);
+      return;
+    }
+
     const node = nodes[id];
     renderBreadcrumb();
 
@@ -4418,7 +4604,6 @@
     const activeBtn = sidebarButtons[id];
     if (activeBtn) activeBtn.scrollIntoView({ block: "nearest", inline: "nearest" });
 
-    const inspector = document.getElementById("inspector");
     inspector.innerHTML = "";
     const root = document.createElement("div");
     root.className = "inspector-content";
@@ -4474,27 +4659,25 @@
 
     // Lien vers la fiche native du système source. Projet réel : requête de lecture
     // prête à copier (psql/pgAdmin), toujours en lecture seule. Démo : maquette
-    // désactivée (système fictif, pas de vraie destination à pointer).
-    if (activeDatasetKey === "real" && node.queryHint) {
-      root.appendChild(queryHintWidget(node.queryHint, node.source ? node.source.system : node.relation));
-      // Correction de donnée : un modèle à adapter, jamais une écriture depuis l'outil.
-      // Placeholders volontairement invalides (<colonne>...) : un copier-coller sans
-      // adaptation échoue en base plutôt que de modifier toutes les lignes en silence.
-      if (node.updateTemplate) root.appendChild(updateTemplateWidget(node.updateTemplate));
-    } else if (node.source) {
-      const link = document.createElement("button");
-      link.className = "ext-link";
-      link.type = "button";
-      link.disabled = true;
-      link.title = "Démo : pointerait vers la fiche d'édition native dans " + node.source.system;
-      link.textContent = "↗ Ouvrir dans " + node.source.system;
-      root.appendChild(link);
-    }
-
-    // Modèle dbt : la correction passe par le code (PR + review), jamais par une
-    // écriture live qui serait de toute façon écrasée au prochain dbt run.
-    if (activeDatasetKey === "real" && node.filePath) {
-      root.appendChild(issueLinkWidget(node));
+    // désactivée (système fictif, pas de vraie destination à pointer). Réservé aux
+    // rôles habilités (sections.correction) — ce n'est pas un contrôle d'accès réel
+    // (page statique, sans backend), juste une simulation de ce à quoi ça ressemblerait.
+    if (ROLES[currentRole].sections.correction) {
+      if (activeDatasetKey === "real" && node.queryHint) {
+        root.appendChild(queryHintWidget(node.queryHint, node.source ? node.source.system : node.relation));
+        if (node.updateTemplate) root.appendChild(updateTemplateWidget(node.updateTemplate));
+      } else if (node.source) {
+        const link = document.createElement("button");
+        link.className = "ext-link";
+        link.type = "button";
+        link.disabled = true;
+        link.title = "Démo : pointerait vers la fiche d'édition native dans " + node.source.system;
+        link.textContent = "↗ Ouvrir dans " + node.source.system;
+        root.appendChild(link);
+      }
+      if (activeDatasetKey === "real" && node.filePath) {
+        root.appendChild(issueLinkWidget(node));
+      }
     }
 
     // Qualité des données (métrique/calcul démo) — pour le projet réel, les tests
@@ -4514,7 +4697,7 @@
     }
 
     // Formule
-    if (node.formula) {
+    if (node.formula && ROLES[currentRole].sections.formula) {
       const bar = document.createElement("div");
       bar.className = "formula-bar";
       bar.appendChild(formulaFragment(node.formula));
@@ -4522,12 +4705,12 @@
     }
 
     // Colonnes (projet réel : structure de la table telle qu'introspectée)
-    if (node.columns && node.columns.length) {
+    if (node.columns && node.columns.length && ROLES[currentRole].sections.columns) {
       root.appendChild(section("Colonnes", columnsSection(node.columns)));
     }
 
     // Détails techniques (repliés) : SQL + valeurs observées
-    if (node.sql || node.example) {
+    if ((node.sql || node.example) && ROLES[currentRole].sections.sql) {
       const details = document.createElement("details");
       details.className = "tech-details";
       const summary = document.createElement("summary");

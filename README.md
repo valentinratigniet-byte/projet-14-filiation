@@ -59,6 +59,25 @@ Quatre façons de regarder le lignage, dans le même outil :
 Là où dbt n'a pas de description, la page l'affiche honnêtement plutôt que
 d'improviser un texte.
 
+## 🎭 Rôles (simulation de visibilité)
+
+Un sélecteur en haut de la barre latérale change ce qui est visible :
+**Administrateur**/**Informatique** (accès complet), **Exploitation**
+(qualité/fraîcheur/systèmes, pas la logique de calcul), **PDG** (uniquement
+les indicateurs business, type `metric` — sur le projet réel, qui n'a encore
+aucun KPI modélisé, ce rôle voit un état vide honnête plutôt qu'un écran
+blanc), **RH** (uniquement les éléments tagués "Donnée personnelle (RGPD)" —
+`src_customer`/`stg_customers`/`dim_customer` sur le projet réel, taggés
+automatiquement dès qu'une colonne `email` est détectée). Les références vers
+un élément non accessible restent visibles mais verrouillées (🔒), pour
+montrer *qu'*il existe une dépendance sans en révéler le contenu.
+
+**Ce n'est pas un vrai contrôle d'accès** : cette page est un fichier
+statique sans backend ni authentification — n'importe qui peut lire le code
+source et voir toutes les données quel que soit le rôle affiché. C'est une
+simulation pédagogique de ce à quoi ressemblerait un vrai portail avec RBAC
+côté serveur.
+
 Toute modification passe par un humain qui relit, jamais par une écriture
 depuis l'outil — il n'y a pas de backend, pas d'identifiants stockés, pas de
 chemin d'écriture caché :

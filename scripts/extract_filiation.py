@@ -247,6 +247,12 @@ def extract_nodes(target_dir: Path) -> tuple[dict[str, Any], str]:
 
     infer_fk_guesses(nodes)
 
+    # Marquage RGPD : toute table portant une colonne "email" (donnée personnelle
+    # réelle du projet), pour la démo du rôle RH dans l'outil.
+    for n in nodes.values():
+        if any(c["name"].lower() == "email" for c in n.get("columns", [])):
+            n["tags"] = n.get("tags", []) + ["Donnée personnelle (RGPD)"]
+
     row_count_targets = [tuple(n["source"]["table"].split(".")) if n["type"] == "raw" else tuple(n["relation"].split(".")[1:]) for n in nodes.values()]
     row_counts = fetch_row_counts(target_dir.parent / "profiles.yml", row_count_targets)
     for n in nodes.values():
