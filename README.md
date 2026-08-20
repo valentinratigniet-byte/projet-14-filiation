@@ -118,10 +118,11 @@ qui peut agir — pas si l'action est sûre.
 projet-14-filiation/
 ├── README.md
 ├── index.html                    ← l'outil, page unique auto-suffisante
-├── requirements.txt               ← sqlglot (lignage colonne-à-colonne)
+├── requirements.txt               ← sqlglot, sqlalchemy (optionnels selon le script utilisé)
 ├── snapshots/                     ← historique d'extractions (pour la vue Dérive)
 └── scripts/
-    └── extract_filiation.py      ← régénère index.html + historise un instantané depuis un target/ dbt
+    ├── extract_filiation.py      ← régénère index.html + historise un instantané depuis un target/ dbt
+    └── scan_database.py          ← "valise de détection" : scanne n'importe quelle base, sans dbt
 ```
 
 ## 🚀 Lancer / régénérer
@@ -146,6 +147,35 @@ compare directement le vrai avant/après au lieu de l'exemple simulé fourni.
 Le script accepte `--target` (autre dossier `target/` dbt), `--html` (autre
 fichier à mettre à jour) et `--label` (nom lisible de l'instantané) pour
 pointer vers un autre projet dbt.
+
+## 🧳 Valise de détection — auditer une base sans projet dbt
+
+`scripts/scan_database.py` scanne **n'importe quelle base** (Postgres,
+MySQL, SQLite, SQL Server...) directement, sans dépendre d'un projet dbt —
+utile pour un premier audit d'un système inconnu (ERP client, base legacy...).
+Toujours en lecture seule (introspection + `SELECT`) :
+
+```bash
+export DATABASE_URL="postgresql://user:pass@host:port/db"   # jamais en argument (historique shell)
+python scripts/scan_database.py --schemas public --label "ERP client X"
+```
+
+Détecte automatiquement : tables, colonnes et types, volumétrie réelle,
+clés étrangères réelles si déclarées (sinon relations inférées par
+convention de nommage, comme pour le projet réel), et des contrôles de
+qualité calculés en direct (valeurs non nulles, unicité des clés simples —
+une clé composite n'est jamais testée colonne par colonne). Alimente le même
+`index.html` que `extract_filiation.py` (mêmes marqueurs, même historisation
+dans `snapshots/`) — c'est la même appli, juste une autre source.
+
+**Ce que ce script ne fait pas** : il n'écrit jamais dans la base scannée, ne
+stocke aucun identifiant (uniquement `$DATABASE_URL`, jamais écrit dans
+`index.html` ni dans un instantané — seuls le dialecte et le nom de la base
+apparaissent), et reste un script qu'on lance soi-même — pas un service
+hébergé qui garderait des connexions à plusieurs systèmes clients. Cette
+version-là (portail multi-ERP avec gestion de connexions) est un chantier
+à part, avec un tout autre modèle de risque (coffre-fort à secrets, contrôle
+d'accès réseau) — pas construite ici pour l'instant.
 
 ## ⚠️ Limite assumée
 
