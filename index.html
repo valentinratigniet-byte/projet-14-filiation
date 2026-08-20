@@ -3601,8 +3601,6 @@
     else render();
   });
 
-  applyRoleTabVisibility();
-
   // ---------- Navigation ----------
 
   let history = ["margin_pct"];
@@ -4020,6 +4018,8 @@
   let graphFocusId = null;
   let impactMode = false;
   let zoomScale = 1, panX = 0, panY = 0;
+
+  applyRoleTabVisibility();
 
   function switchView(view) {
     if (currentView === view) return;
