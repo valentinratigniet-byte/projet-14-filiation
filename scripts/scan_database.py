@@ -27,6 +27,20 @@ from extract_filiation import SNAPSHOTS_DIR, build_snapshots_block, infer_fk_gue
 
 DEFAULT_HTML = Path(__file__).resolve().parent.parent / "index.html"
 
+# Sur MySQL/MariaDB, "schema" == "database" au sens SQLAlchemy : get_schema_names()
+# liste alors TOUTES les bases de l'instance (y compris mysql/performance_schema/sys),
+# pas seulement celle ciblée par l'URL de connexion — contrairement à Postgres, où les
+# schémas sont des espaces de noms à l'intérieur d'une seule base. Trouvé en testant
+# réellement contre une instance MySQL : le scan par défaut remontait 154 tables système
+# au lieu des 3 tables réelles.
+MYSQL_LIKE_DIALECTS = {"mysql", "mariadb"}
+
+
+def default_schemas(engine, insp) -> list[str]:
+    if engine.dialect.name in MYSQL_LIKE_DIALECTS:
+        return [engine.url.database]
+    return [s for s in insp.get_schema_names() if s not in ("information_schema", "pg_catalog")]
+
 
 def node_id(table: str) -> str:
     return "tbl_" + table
@@ -65,7 +79,7 @@ def check_unique(engine, conn, schema: str, table: str, column: str, total: int)
 def scan(url: str, schemas: list[str] | None) -> dict[str, Any]:
     engine = create_engine(url)
     insp = inspect(engine)
-    schemas = schemas or [s for s in insp.get_schema_names() if s not in ("information_schema", "pg_catalog")]
+    schemas = schemas or default_schemas(engine, insp)
 
     id_by_table: dict[tuple[str, str], str] = {}
     for schema in schemas:

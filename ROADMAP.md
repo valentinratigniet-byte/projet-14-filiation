@@ -1,6 +1,6 @@
 # Feuille de route
 
-État au 2026-08-20 (10 commits). Trois chantiers identifiés pour la reprise,
+État au 2026-08-20 (11 commits). Trois chantiers identifiés pour la reprise,
 dans l'ordre conseillé : 1) durcir le raccordement aux bases existant,
 2) compléter les informations qu'on en extrait, 3) étendre le lignage
 jusqu'à la couche Power BI (nouveau sous-système, plus gros morceau).
@@ -21,12 +21,22 @@ régression sur Postgres.
 
 **À faire :**
 
-- [ ] **Tester réellement contre un 2ᵉ moteur** (MySQL via `PyMySQL`, ou SQL
-      Server via `pyodbc`) — seul Postgres a été testé en conditions
-      réelles jusqu'ici. Vérifier au minimum : le quoting (corrigé mais
-      jamais vérifié hors Postgres), le format de `str(column["type"])`
-      (varie beaucoup selon le dialecte), et le comportement de
-      `get_foreign_keys()`/`get_pk_constraint()` sur ces moteurs.
+- [x] **Tester réellement contre un 2ᵉ moteur (MySQL)** — fait le
+      2026-08-20 contre un conteneur MySQL 8.4 jetable (schéma à 3 tables,
+      FK, clé composite, colonne nullable). Bug réel trouvé et corrigé :
+      `insp.get_schema_names()` sur MySQL liste **toutes les bases de
+      l'instance** (`mysql`, `performance_schema`, `sys`...), pas seulement
+      celle de l'URL de connexion — contrairement à Postgres où un schéma
+      est un espace de noms *dans* une base. Sans filtre, le scan par
+      défaut remontait 154 tables système au lieu des 3 tables réelles.
+      Fix : `default_schemas()` détecte les dialectes MySQL/MariaDB et se
+      limite à `engine.url.database` ; le comportement Postgres (tous les
+      schémas non-système de la base connectée) est inchangé et re-vérifié
+      sans régression contre la vraie base ecommerce (5 tables `raw`, 19
+      tables tous schémas). Quoting, FK, clé composite et détection NULL
+      confirmés corrects sur MySQL dans la foulée.
+      **Reste à faire** : SQL Server (`pyodbc`) — pas testé, aucune
+      instance disponible localement pour le moment.
 - [ ] **Grosses bases** : `scan_database.py` scanne aujourd'hui *toutes*
       les tables des schémas ciblés, sans limite. Sur une vraie ERP
       (plusieurs centaines de tables), ce serait long et lourd. Ajouter un
