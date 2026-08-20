@@ -254,6 +254,13 @@
   .node-name { font-size: 1.6rem; font-weight: 600; margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
   .node-desc { margin: 0; color: var(--text-muted); max-width: 62ch; line-height: 1.6; font-size: 0.95rem; }
 
+  .lineage-figure { margin: 0; }
+  .lineage-figure svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+  .lineage-figure figcaption { text-align: center; font-size: 0.78rem; color: var(--text-muted); margin-top: 0.4rem; }
+  .lineage-node.is-clickable { cursor: pointer; }
+  .lineage-node.is-clickable:hover .lineage-rect { stroke-width: 2.2px; }
+  .lineage-node:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
   .keyfacts {
     margin: 0;
     font-family: "IBM Plex Mono", monospace;
@@ -1152,6 +1159,134 @@
     return wrap;
   }
 
+  // ---------- Mini-diagramme de position dans le lignage ----------
+
+  const SVG_NS = "http://www.w3.org/2000/svg";
+
+  function estimateBoxWidth(label) {
+    return Math.max(72, Math.min(200, label.length * 6.6 + 22));
+  }
+
+  function svgEl(tag, attrs) {
+    const el = document.createElementNS(SVG_NS, tag);
+    for (const k in attrs) el.setAttribute(k, attrs[k]);
+    return el;
+  }
+
+  function lineageDiagram(id) {
+    const node = nodes[id];
+    const deps = node.deps || [];
+    const parents = usedBy(id);
+    if (!deps.length && !parents.length) return null;
+
+    const gapX = 14, gapY = 46, boxH = 32;
+
+    function layoutRow(ids) {
+      const widths = ids.map((i) => estimateBoxWidth(nodes[i].short));
+      const totalW = widths.reduce((a, b) => a + b, 0) + gapX * Math.max(0, ids.length - 1);
+      return { ids, widths, totalW };
+    }
+
+    const depsRow = layoutRow(deps);
+    const parentsRow = layoutRow(parents);
+    const centerW = estimateBoxWidth(node.short) + 22;
+    const centerH = boxH + 10;
+
+    const svgW = Math.max(depsRow.totalW, centerW, parentsRow.totalW, 180) + 40;
+
+    let y = 16;
+    const depsY = y;
+    if (deps.length) y += boxH + gapY;
+    const centerY = y;
+    y += centerH + (parents.length ? gapY : 16);
+    const parentsY = y;
+    if (parents.length) y += boxH + 16;
+    const svgH = y;
+
+    function placeRow(row, rowY, h) {
+      let x = svgW / 2 - row.totalW / 2;
+      return row.ids.map((rowId, idx) => {
+        const w = row.widths[idx];
+        const pos = { id: rowId, x, y: rowY, w, h };
+        x += w + gapX;
+        return pos;
+      });
+    }
+
+    const depsPositions = deps.length ? placeRow(depsRow, depsY, boxH) : [];
+    const centerPos = { id, x: svgW / 2 - centerW / 2, y: centerY, w: centerW, h: centerH };
+    const parentsPositions = parents.length ? placeRow(parentsRow, parentsY, boxH) : [];
+
+    const svg = svgEl("svg", {
+      viewBox: `0 0 ${svgW} ${svgH}`,
+      role: "img",
+      "aria-label": `Position de ${node.short} dans le lignage : ${deps.length ? deps.length + " dépendance(s) en amont" : "aucune dépendance"}, ${parents.length ? parents.length + " référence(s) en aval" : "aucune référence"}.`,
+    });
+
+    const defs = svgEl("defs", {});
+    const marker = svgEl("marker", {
+      id: "lineage-arrow", viewBox: "0 0 10 10", refX: "8", refY: "5",
+      markerWidth: "6.5", markerHeight: "6.5", orient: "auto-start-reverse",
+    });
+    marker.appendChild(svgEl("path", { d: "M0,0 L10,5 L0,10 z", style: "fill: currentColor" }));
+    defs.appendChild(marker);
+    svg.appendChild(defs);
+
+    function drawArrow(x1, y1, x2, y2) {
+      svg.appendChild(svgEl("line", {
+        x1, y1, x2, y2,
+        style: "stroke: var(--text-muted); color: var(--text-muted); stroke-width: 1.3px;",
+        "marker-end": "url(#lineage-arrow)",
+      }));
+    }
+
+    function drawBox(pos, isCenter, clickable) {
+      const type = nodes[pos.id].type;
+      const g = svgEl("g", { class: "lineage-node" + (clickable ? " is-clickable" : "") });
+      const rect = svgEl("rect", {
+        x: pos.x, y: pos.y, width: pos.w, height: pos.h, rx: 7, class: "lineage-rect",
+        style: `fill: var(--${type}-soft); stroke: var(--${type}); stroke-width: ${isCenter ? 2 : 1.2}px;`,
+      });
+      const text = svgEl("text", {
+        x: pos.x + pos.w / 2, y: pos.y + pos.h / 2 + 4, "text-anchor": "middle",
+        style: `font-family: 'IBM Plex Mono', monospace; font-size: 11px; fill: var(--${type}); font-weight: ${isCenter ? 700 : 500};`,
+      });
+      text.textContent = nodes[pos.id].short;
+      g.append(rect, text);
+      if (clickable) {
+        g.setAttribute("tabindex", "0");
+        g.setAttribute("role", "button");
+        g.setAttribute("aria-label", "Aller à " + nodes[pos.id].name);
+        const go = () => navigate(pos.id);
+        g.addEventListener("click", go);
+        g.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+      }
+      svg.appendChild(g);
+    }
+
+    for (const pos of depsPositions) {
+      drawArrow(pos.x + pos.w / 2, pos.y + pos.h, centerPos.x + centerPos.w / 2, centerPos.y);
+    }
+    for (const pos of parentsPositions) {
+      drawArrow(centerPos.x + centerPos.w / 2, centerPos.y + centerPos.h, pos.x + pos.w / 2, pos.y);
+    }
+    for (const pos of depsPositions) drawBox(pos, false, true);
+    drawBox(centerPos, true, false);
+    for (const pos of parentsPositions) drawBox(pos, false, true);
+
+    const figure = document.createElement("figure");
+    figure.className = "lineage-figure";
+    figure.appendChild(svg);
+    const caption = document.createElement("figcaption");
+    caption.textContent = deps.length && parents.length
+      ? "En haut : ce dont ce nœud dépend. En bas : ce qui le référence."
+      : deps.length
+        ? "Ce dont ce nœud dépend."
+        : "Ce qui référence ce nœud.";
+    figure.appendChild(caption);
+    return figure;
+  }
+
   function render() {
     const id = history[history.length - 1];
     const node = nodes[id];
@@ -1193,6 +1328,11 @@
     desc.textContent = node.description;
     head.append(badgeRow, name, desc);
     root.appendChild(head);
+
+    // Position dans le lignage (diagramme local : ce dont dépend le nœud, en haut ;
+    // ce qui le référence, en bas). Absent quand le nœud n'a ni l'un ni l'autre.
+    const diagram = lineageDiagram(id);
+    if (diagram) root.appendChild(diagram);
 
     // Ligne de faits clés (chaque champ est optionnel selon le jeu de données)
     const facts = [];
