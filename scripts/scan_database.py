@@ -32,17 +32,31 @@ def node_id(table: str) -> str:
     return "tbl_" + table
 
 
-def check_not_null(conn, schema: str, table: str, column: str) -> dict | None:
+def quoted_table(engine, schema: str, table: str) -> str:
+    """Identifiant qualifié, quoté selon le dialecte réel (guillemets doubles
+    sur Postgres, backticks sur MySQL, crochets sur SQL Server...) — un SQL
+    texte codé en dur avec des guillemets doubles casserait silencieusement
+    sur MySQL (guillemets doubles = chaîne littérale par défaut, pas un
+    identifiant)."""
+    prep = engine.dialect.identifier_preparer
+    return f"{prep.quote(schema)}.{prep.quote(table)}"
+
+
+def quoted_col(engine, column: str) -> str:
+    return engine.dialect.identifier_preparer.quote(column)
+
+
+def check_not_null(engine, conn, schema: str, table: str, column: str) -> dict | None:
     try:
-        n = conn.execute(text(f'select count(*) from "{schema}"."{table}" where "{column}" is null')).scalar()
+        n = conn.execute(text(f"select count(*) from {quoted_table(engine, schema, table)} where {quoted_col(engine, column)} is null")).scalar()
     except Exception:
         return None
     return {"label": "Valeurs non nulles", "status": "ok" if n == 0 else "warn", "note": None if n == 0 else f"{n} valeur(s) nulle(s) détectée(s)"}
 
 
-def check_unique(conn, schema: str, table: str, column: str, total: int) -> dict | None:
+def check_unique(engine, conn, schema: str, table: str, column: str, total: int) -> dict | None:
     try:
-        n = conn.execute(text(f'select count(distinct "{column}") from "{schema}"."{table}"')).scalar()
+        n = conn.execute(text(f"select count(distinct {quoted_col(engine, column)}) from {quoted_table(engine, schema, table)}")).scalar()
     except Exception:
         return None
     return {"label": "Unicité", "status": "ok" if n == total else "fail", "note": None if n == total else f"{total - n} doublon(s)"}
@@ -80,7 +94,7 @@ def scan(url: str, schemas: list[str] | None) -> dict[str, Any]:
                         fk_by_col.setdefault(local_col, []).append({"node": target, "column": ref_col})
 
                 try:
-                    total = conn.execute(text(f'select count(*) from "{schema}"."{table}"')).scalar()
+                    total = conn.execute(text(f"select count(*) from {quoted_table(engine, schema, table)}")).scalar()
                 except Exception:
                     total = None
 
@@ -88,13 +102,13 @@ def scan(url: str, schemas: list[str] | None) -> dict[str, Any]:
                 for c in cols:
                     tests = []
                     if total is not None:
-                        nn = check_not_null(conn, schema, table, c["name"])
+                        nn = check_not_null(engine, conn, schema, table, c["name"])
                         if nn:
                             tests.append(nn)
                         # Unicité testée colonne par colonne uniquement pour une clé simple
                         # (une clé composite n'implique l'unicité d'aucune colonne seule).
                         if pk_cols == {c["name"]}:
-                            uq = check_unique(conn, schema, table, c["name"], total)
+                            uq = check_unique(engine, conn, schema, table, c["name"], total)
                             if uq:
                                 tests.append(uq)
                     entry = {"name": c["name"], "type": str(c["type"]), "tests": tests}
@@ -110,7 +124,7 @@ def scan(url: str, schemas: list[str] | None) -> dict[str, Any]:
                     "description": f"Table détectée automatiquement ({schema}.{table}) — aucune documentation associée. Relations : {'réelles (clés étrangères déclarées).' if fks else 'aucune contrainte déclarée ; complétées ci-dessous par une heuristique de nommage.'}",
                     "deps": sorted(set(deps)),
                     "source": {"system": system_label, "table": f"{schema}.{table}"},
-                    "queryHint": f'select * from "{schema}"."{table}" limit 20;',
+                    "queryHint": f"select * from {quoted_table(engine, schema, table)} limit 20;",
                     "columns": columns,
                 }
                 if total is not None:

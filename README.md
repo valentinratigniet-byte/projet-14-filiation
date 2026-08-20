@@ -9,6 +9,35 @@
 > techniquement (dbt docs, pensé pour l'équipe data) ; celui-ci l'expose sous
 > une forme cliquable, pensée pour quelqu'un qui ne lit pas de DAG.
 
+**Sommaire** : [Ce que fait le projet](#-ce-que-fait-le-projet) ·
+[Rôles](#-rôles-simulation-de-visibilité) ·
+[Résultats chiffrés](#-résultats-chiffrés) ·
+[Contenu](#️-contenu) ·
+[Reprise rapide](#-reprise-rapide-après-une-pause) ·
+[Lancer / régénérer](#-lancer--régénérer) ·
+[Valise de détection](#-valise-de-détection--auditer-une-base-sans-projet-dbt) ·
+[Limites assumées](#️-limites-assumées) ·
+[Feuille de route →](ROADMAP.md)
+
+## 🔁 Reprise rapide (après une pause)
+
+1. **Base Postgres du Projet 10** (nécessaire pour le jeu "Projet réel" et
+   pour `scan_database.py`) : `docker ps --filter name=p07_ecommerce_db` —
+   si arrêté, `docker start p07_ecommerce_db` (port 5433, identifiants de
+   démo non secrets dans
+   [`projet-10-pipeline-elt/dbt_ecommerce/profiles.yml`](../projet-10-pipeline-elt/dbt_ecommerce/profiles.yml)).
+2. **Dépendances Python** (une fois par environnement) :
+   `pip install -r requirements.txt`.
+3. **Vérifier que tout tourne encore** :
+   `python scripts/extract_filiation.py` puis ouvrir `index.html` — si la
+   page est blanche, vérifier la console navigateur avant toute autre chose
+   (voir historique de commits : une régression silencieuse s'est déjà
+   produite ici, cause et correctif dans le commit
+   `fix: page blanche depuis l'ajout des rôles (erreur JS au chargement)`).
+4. **Ce qui reste à faire** : [ROADMAP.md](ROADMAP.md) — raccordement aux
+   bases de données (durcissement), complétude des informations extraites,
+   et extension du lignage jusqu'aux mesures/colonnes calculées Power BI.
+
 ## 🧬 Ce que fait le projet
 
 Une page unique (`index.html`, aucune dépendance) avec deux jeux de données,
@@ -117,6 +146,7 @@ qui peut agir — pas si l'action est sûre.
 ```
 projet-14-filiation/
 ├── README.md
+├── ROADMAP.md                     ← ce qui reste à faire (3 chantiers priorisés)
 ├── index.html                    ← l'outil, page unique auto-suffisante
 ├── requirements.txt               ← sqlglot, sqlalchemy (optionnels selon le script utilisé)
 ├── snapshots/                     ← historique d'extractions (pour la vue Dérive)
@@ -177,10 +207,15 @@ version-là (portail multi-ERP avec gestion de connexions) est un chantier
 à part, avec un tout autre modèle de risque (coffre-fort à secrets, contrôle
 d'accès réseau) — pas construite ici pour l'instant.
 
-## ⚠️ Limite assumée
+## ⚠️ Limites assumées
 
 `index.html` est une page statique : elle ne se connecte pas à une base en
 direct (pas de backend). "Se met à jour toute seule" veut dire *relancer le
 script après chaque `dbt run`*, pas une synchronisation live — pour ça il
 faudrait une vraie application avec un backend interrogeant la base à chaque
 chargement.
+
+Ce que les scripts d'extraction ne couvrent pas encore (commentaires
+déclarés en base, vues, index, contraintes CHECK, deuxième moteur de base
+testé au-delà de Postgres...) et l'extension du lignage jusqu'aux mesures et
+colonnes calculées Power BI : voir [ROADMAP.md](ROADMAP.md).
