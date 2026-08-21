@@ -246,6 +246,21 @@ raccourci technique.
 
 ### Pipelines (orchestration réelle)
 
+**Tenté le 2026-08-22, reporté** : `bv-n8n` répond (`/healthz` → 200) mais
+son API (`/rest/executions`, `/api/v1/*`) exige une authentification —
+session via `/rest/login` (email+mot de passe) ou clé API générée à la main
+dans Settings → API. Les deux passent par la soumission d'un identifiant
+dans une commande, ce que le classificateur auto-mode de Claude Code refuse
+automatiquement (même blocage que pour les connexions base de données, voir
+chantier 1/17e commit). Surtout : **`bv-n8n` n'a encore aucun workflow ni
+exécution réelle** — confirmé avec Valentin le 2026-08-22, ça n'aurait rien
+eu à exposer de toute façon. Reporté jusqu'à ce que les deux conditions
+soient réunies : de vrais workflows dans `bv-n8n` (ou un n8n/Prefect dédié à
+ce projet, plus simple à authentifier), et une décision sur comment fournir
+la clé API sans passer par une commande bloquée (Valentin la génère et la
+colle lui-même via `!`, ou l'exporte en `$N8N_API_KEY` avant de lancer le
+script d'extraction).
+
 - [ ] Le domaine **Data** du jeu démo (fraîcheur pipelines, succès jobs,
       score qualité) est aujourd'hui entièrement fictif — le remplacer par
       du réel sur le même principe qu'`extract_filiation.py`/
@@ -253,10 +268,11 @@ raccourci technique.
       un vrai orchestrateur et régénère les nœuds correspondants.
 - [ ] Deux pistes déjà présentes sur ce poste : **Prefect** (déjà installé
       dans le venv du [[portfolio-data]] Projet 10, a une API REST pour
-      lister flows/runs et leur statut) et **n8n** (API REST
-      `/rest/executions`). Prefect est plus simple à isoler pour un premier
-      test (2-3 flows factices dans un environnement Prefect dédié à ce
-      projet) sans toucher à l'instance partagée.
+      lister flows/runs et leur statut, pas d'auth par mot de passe) et
+      **n8n** (API REST, mais authentification requise — voir ci-dessus).
+      Prefect est plus simple à isoler pour un premier test (2-3 flows
+      factices dans un environnement Prefect dédié à ce projet) sans
+      toucher à l'instance partagée ni au problème d'authentification.
 - [ ] Une fois le pipeline réel branché, les nœuds `pipelines_a_jour`,
       `jobs_reussis`, `score_qualite_donnees`... du domaine Data basculent
       du jeu démo (fictif) vers le jeu réel — cohérent avec la façon dont
