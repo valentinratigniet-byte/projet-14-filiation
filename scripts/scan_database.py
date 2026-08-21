@@ -10,13 +10,21 @@ Usage :
     export DATABASE_URL="postgresql://user:pass@host:port/db"   # jamais en argument (historique shell)
     python scripts/scan_database.py [--schemas raw staging] [--html INDEX_HTML] [--label "Nom du système"]
 
+Pour combiner plusieurs systèmes dans le même rapport (ex. un ERP et un CRM),
+relancer avec --merge : le scan fusionne avec les nœuds réels déjà présents
+au lieu de tout remplacer (comportement par défaut). Les ids de nœuds sont
+préfixés par système pour éviter toute collision entre deux tables de même
+nom sur deux systèmes différents.
+
 Toujours en lecture seule (SELECT / introspection uniquement). Les
 identifiants ne sont jamais écrits dans le HTML ni dans un instantané — seuls
 le nom de dialecte et le nom de base apparaissent (ex. "postgresql — ecommerce").
 """
 
 import argparse
+import json
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -42,8 +50,12 @@ def default_schemas(engine, insp) -> list[str]:
     return [s for s in insp.get_schema_names() if s not in ("information_schema", "pg_catalog")]
 
 
-def node_id(table: str) -> str:
-    return "tbl_" + table
+def slugify(s: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", s.lower()).strip("_")
+
+
+def node_id(system_slug: str, table: str) -> str:
+    return f"tbl_{system_slug}_{table}"
 
 
 def quoted_table(engine, schema: str, table: str) -> str:
@@ -99,14 +111,15 @@ def scan(url: str, schemas: list[str] | None, tables: list[str] | None = None) -
     insp = inspect(engine)
     schemas = schemas or default_schemas(engine, insp)
 
+    system_label = f"{engine.url.get_backend_name()} — {engine.url.database}"
+    system_slug = slugify(system_label)
+
     id_by_table: dict[tuple[str, str], str] = {}
     for schema in schemas:
         for table in insp.get_table_names(schema=schema):
             if tables is not None and table not in tables:
                 continue
-            id_by_table[(schema, table)] = node_id(table)
-
-    system_label = f"{engine.url.get_backend_name()} — {engine.url.database}"
+            id_by_table[(schema, table)] = node_id(system_slug, table)
     nodes: dict[str, Any] = {}
 
     with engine.connect() as conn:
@@ -169,6 +182,25 @@ def scan(url: str, schemas: list[str] | None, tables: list[str] | None = None) -
     return nodes
 
 
+def load_existing_real_nodes(html_path: Path) -> dict[str, Any]:
+    """Relit le bloc `realNodes` déjà présent dans index.html — utilisé par
+    --merge pour fusionner un nouveau système avec ceux déjà scannés plutôt
+    que de tout remplacer. Best-effort : un bloc absent ou illisible donne un
+    dict vide (comportement équivalent à un premier scan)."""
+    if not html_path.exists():
+        return {}
+    html = html_path.read_text(encoding="utf-8")
+    block_m = re.search(r"// AUTO-GENERATED:BEGIN.*?\n(.*?)\n\s*// AUTO-GENERATED:END", html, re.S)
+    if not block_m:
+        return {}
+    nodes_part = block_m.group(1).split("\n  const REAL_GENERATED_AT")[0]
+    try:
+        nodes_json = nodes_part.split("const realNodes = ", 1)[1].rstrip().rstrip(";")
+        return json.loads(nodes_json)
+    except (IndexError, json.JSONDecodeError):
+        return {}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--url", default=None, help="URL SQLAlchemy — préférer $DATABASE_URL pour ne pas exposer le mot de passe dans l'historique shell")
@@ -178,6 +210,7 @@ def main() -> None:
     parser.add_argument("--label", default=None, help="Nom lisible pour ce système (ex. \"ERP client X\")")
     parser.add_argument("--tables", nargs="*", default=None, help="Limiter le scan à ces tables précises (nom sans schéma)")
     parser.add_argument("--top", type=int, default=None, help="Aperçu rapide : ne scanner en détail que les N tables les plus volumineuses (COUNT(*) sur toutes les tables d'abord)")
+    parser.add_argument("--merge", action="store_true", help="Fusionner avec les systèmes déjà scannés (par défaut : un scan remplace tous les nœuds réels précédents)")
     args = parser.parse_args()
 
     url = args.url or os.environ.get("DATABASE_URL")
@@ -197,13 +230,21 @@ def main() -> None:
             print(f"  {n:>10}  {schema}.{table}")
 
     nodes = scan(url, schemas, tables)
+    scanned_count = len(nodes)
+    if args.merge:
+        merged = load_existing_real_nodes(args.html)
+        merged.update(nodes)
+        nodes = merged
     generated_at = datetime.now(timezone.utc).isoformat()
 
     splice(args.html, "AUTO-GENERATED", to_js_const("realNodes", nodes) + "\n" + to_js_const("REAL_GENERATED_AT", generated_at))
     is_new = save_snapshot(nodes, generated_at, args.snapshots, args.label)
     splice(args.html, "SNAPSHOTS", build_snapshots_block(args.snapshots))
 
-    print(f"OK — {len(nodes)} table(s) détectée(s), {args.html} mis à jour.")
+    if args.merge:
+        print(f"OK — {scanned_count} table(s) scannée(s) pour ce système, {len(nodes)} au total après fusion, {args.html} mis à jour.")
+    else:
+        print(f"OK — {len(nodes)} table(s) détectée(s), {args.html} mis à jour.")
     print(f"instantané {'ajouté' if is_new else 'déjà présent'} pour {generated_at}")
 
 

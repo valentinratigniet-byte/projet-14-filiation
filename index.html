@@ -4193,7 +4193,8 @@
       document.querySelectorAll(".ds-btn").forEach((b) => b.classList.toggle("active", b.dataset.ds === key));
       buildSidebar(nodes);
       document.getElementById("sidebar-search").value = "";
-      const root = ROLES[currentRole].canSeeNode(nodes[DATASET_ROOT[key]]) ? DATASET_ROOT[key] : firstVisibleId(nodes);
+      const preferredRoot = DATASET_ROOT[key];
+      const root = (nodes[preferredRoot] && ROLES[currentRole].canSeeNode(nodes[preferredRoot])) ? preferredRoot : firstVisibleId(nodes);
       history = root ? [root] : [];
       graphFocusId = null;
       if (currentView === "graphe") renderGraphView(); else render();

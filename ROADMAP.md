@@ -64,13 +64,29 @@ régression sur Postgres.
       configurable actuellement ; une base distante lente ferait planter le
       scan sans message clair. Ajouter `connect_args` par dialecte + un
       retry avec backoff.
-- [ ] **Fusionner plusieurs sources dans un même rapport** — aujourd'hui un
-      scan = un système, et relancer le script sur un 2ᵉ système *écrase*
-      le premier (`splice()` remplace tout le bloc `realNodes`). Pour un
-      vrai audit multi-systèmes (ERP + CRM + entrepôt dans le même
-      rapport), il faut faire évoluer `splice()`/le format de données pour
-      fusionner au lieu de remplacer (préfixer les ids de nœuds par système
-      pour éviter les collisions de clés).
+- [x] **Fusionner plusieurs sources dans un même rapport** — fait le
+      2026-08-21. `scan_database.py --merge` relit le `realNodes` déjà
+      présent dans `index.html`, y fusionne les nœuds fraîchement scannés
+      (`dict.update`) au lieu de tout remplacer. Les ids de nœuds sont
+      désormais préfixés par système (`tbl_{système}_{table}`, ex.
+      `tbl_postgresql_ecommerce_customer`) pour éviter toute collision entre
+      deux systèmes ayant une table de même nom — sans `--merge`, le
+      comportement par défaut (un scan remplace tout) est inchangé. La vue
+      Systèmes n'a demandé aucun changement : elle groupe déjà dynamiquement
+      par `source.system`.
+      **Bug réel trouvé en testant** : en scannant un système minimal (sans
+      jamais avoir lancé `extract_filiation.py`), le sélecteur de jeu de
+      données plantait au clic sur "Projet réel" — `DATASET_ROOT.real`
+      pointe en dur vers `"fct_sales"` (un nœud du jeu dbt), et pour les
+      rôles dont `canSeeNode` ignore son argument (admin/it/exploitation,
+      tous `() => true`), l'absence du nœud passait inaperçue : la racine
+      choisie n'existait pas dans `nodes`, et `renderBreadcrumb()` plantait
+      sur `nodes[id].short`. Corrigé en vérifiant l'existence du nœud avant
+      son accessibilité (`nodes[preferredRoot] && canSeeNode(...)` plutôt
+      que `canSeeNode(nodes[preferredRoot])` seul). Testé en direct : fusion
+      réelle de la base ecommerce (2 tables) avec un Postgres jetable
+      (1 table) — 3 nœuds, 2 cartes dans la vue Systèmes, navigation et
+      changement de rôle sans erreur (jsdom).
 - [ ] **Connexions nommées** — un fichier `connections.yml` gitignored
       listant des alias (nom du système → nom de la variable d'environnement
       à lire), pour ne pas retaper l'URL à chaque audit. Jamais de secret en
