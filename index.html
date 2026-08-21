@@ -1038,6 +1038,618 @@
       example: ["4 812", "5 103", "4 950"],
       owner: "Squad Data — Marketing", refresh: "Quotidien 07h00 (connecteur GA4)", last_updated: "2026-08-18 07:04",
       quality: [{ label: "Fraîcheur < 24h", status: "warn", note: "Connecteur GA4 en retard de 36h" }, { label: "Valeurs non nulles", status: "ok" }]
+    },
+
+    // ---- Finance ----
+    ebitda_pct: {
+      domain: "Finance", type: "metric", token: "ebitda_pct",
+      name: "EBITDA (%)", short: "EBITDA",
+      description: "Excédent brut d'exploitation rapporté au chiffre d'affaires net, indicateur de rentabilité opérationnelle avant amortissements et éléments financiers.",
+      formula: "{ebe} / {ca_net} × 100",
+      sql: "select\n    ebe.ebe / ca_net.ca_net * 100 as ebitda_pct\nfrom ebe\njoin ca_net using (period)",
+      owner: "Contrôle de gestion", refresh: "Mensuel, J+3 (clôture comptable)", last_updated: "2026-08-03 09:00",
+      tags: ["Indicateur nord étoile"],
+      quality: [{ label: "Plage -50 – 60 %", status: "ok" }]
+    },
+    ratio_endettement: {
+      domain: "Finance", type: "metric", token: "ratio_endettement",
+      name: "Ratio d'endettement", short: "Endettement",
+      description: "Dette financière nette rapportée aux capitaux propres — mesure la dépendance de l'entreprise à l'endettement externe.",
+      formula: "{dette_nette} / {capitaux_propres}",
+      sql: "select\n    dette_nette.dette_nette / bilan.capitaux_propres as ratio_endettement\nfrom dette_nette\njoin bilan using (period)",
+      owner: "Contrôle de gestion", refresh: "Mensuel, J+3 (clôture comptable)", last_updated: "2026-08-03 09:00",
+      quality: [{ label: "Ratio < 2", status: "warn", note: "1.8 ce mois-ci, proche du seuil covenant bancaire" }]
+    },
+    fcf: {
+      domain: "Finance", type: "metric", token: "fcf",
+      name: "Free cash-flow", short: "FCF",
+      description: "Trésorerie générée par l'activité, après investissements (CAPEX) et variation du besoin en fonds de roulement.",
+      formula: "{ebe} − {capex} − {variation_bfr}",
+      sql: "select\n    ebe.ebe - immobilisations.capex - bilan.variation_bfr as fcf\nfrom ebe\njoin immobilisations using (period)\njoin bilan using (period)",
+      owner: "Contrôle de gestion", refresh: "Mensuel, J+3 (clôture comptable)", last_updated: "2026-08-03 09:00",
+      quality: [{ label: "Cohérence vs trésorerie constatée", status: "ok" }]
+    },
+    ebe: {
+      domain: "Finance", type: "derived", token: "ebe",
+      name: "Excédent brut d'exploitation", short: "EBE",
+      description: "Résultat dégagé par l'exploitation courante, avant amortissements, charges et produits financiers et exceptionnels.",
+      formula: "{produits_exploitation} − {charges_exploitation}",
+      sql: "select\n    compte_resultat.produits_exploitation - compte_resultat.charges_exploitation as ebe\nfrom compte_resultat",
+      owner: "Squad Data — Finance", refresh: "Mensuel, J+2 (dbt run)", last_updated: "2026-08-02 07:00",
+      quality: [{ label: "Cohérence vs grand livre", status: "ok" }]
+    },
+    dette_nette: {
+      domain: "Finance", type: "derived", token: "dette_nette",
+      name: "Dette financière nette", short: "Dette nette",
+      description: "Dettes financières diminuées de la trésorerie disponible.",
+      formula: "{dettes_financieres} − {tresorerie}",
+      sql: "select\n    bilan.dettes_financieres - bilan.disponibilites as dette_nette\nfrom bilan",
+      owner: "Squad Data — Finance", refresh: "Mensuel, J+2 (dbt run)", last_updated: "2026-08-02 07:00",
+      quality: [{ label: "Valeurs non négatives attendues", status: "ok" }]
+    },
+    produits_exploitation: {
+      domain: "Finance", type: "raw", token: "produits_exploitation",
+      name: "Produits d'exploitation", short: "Produits expl.",
+      description: "Total des produits générés par l'activité courante (ventes, production stockée, subventions d'exploitation).",
+      sql: "select\n    period,\n    produits_exploitation\nfrom compte_resultat",
+      source: { system: "ERP Comptabilité", table: "compte_resultat", column: "produits_exploitation" },
+      data_type: "NUMERIC(14,2)",
+      example: ["842 300,00 €", "798 100,00 €", "915 600,00 €"],
+      owner: "Direction Financière", refresh: "Mensuel, J+1 (clôture comptable)", last_updated: "2026-08-01 18:00",
+      quality: [{ label: "Valeurs non nulles", status: "ok" }]
+    },
+    charges_exploitation: {
+      domain: "Finance", type: "raw", token: "charges_exploitation",
+      name: "Charges d'exploitation", short: "Charges expl.",
+      description: "Total des charges liées à l'activité courante (achats, charges de personnel, charges externes).",
+      sql: "select\n    period,\n    charges_exploitation\nfrom compte_resultat",
+      source: { system: "ERP Comptabilité", table: "compte_resultat", column: "charges_exploitation" },
+      data_type: "NUMERIC(14,2)",
+      example: ["701 200,00 €", "688 400,00 €", "742 900,00 €"],
+      owner: "Direction Financière", refresh: "Mensuel, J+1 (clôture comptable)", last_updated: "2026-08-01 18:00",
+      quality: [{ label: "Valeurs non nulles", status: "ok" }]
+    },
+    dettes_financieres: {
+      domain: "Finance", type: "raw", token: "dettes_financieres",
+      name: "Dettes financières", short: "Dettes fin.",
+      description: "Emprunts et dettes assimilées portés au bilan en fin de période.",
+      sql: "select\n    period,\n    dettes_financieres\nfrom bilan",
+      source: { system: "ERP Comptabilité", table: "bilan", column: "dettes_financieres" },
+      data_type: "NUMERIC(14,2)",
+      example: ["1 250 000,00 €", "1 190 000,00 €"],
+      owner: "Direction Financière", refresh: "Mensuel, J+1 (clôture comptable)", last_updated: "2026-08-01 18:00",
+      quality: [{ label: "Valeurs non nulles", status: "ok" }]
+    },
+    tresorerie: {
+      domain: "Finance", type: "raw", token: "disponibilites",
+      name: "Trésorerie disponible", short: "Trésorerie",
+      description: "Disponibilités en caisse et en banque en fin de période.",
+      sql: "select\n    period,\n    disponibilites\nfrom bilan",
+      source: { system: "ERP Comptabilité", table: "bilan", column: "disponibilites" },
+      data_type: "NUMERIC(14,2)",
+      example: ["312 400,00 €", "298 700,00 €"],
+      owner: "Direction Financière", refresh: "Mensuel, J+1 (clôture comptable)", last_updated: "2026-08-01 18:00",
+      quality: [{ label: "Valeurs non nulles", status: "ok" }, { label: "Cohérence vs relevés bancaires", status: "ok" }]
+    },
+    capitaux_propres: {
+      domain: "Finance", type: "raw", token: "capitaux_propres",
+      name: "Capitaux propres", short: "Cap. propres",
+      description: "Capital social, réserves et report à nouveau en fin de période.",
+      sql: "select\n    period,\n    capitaux_propres\nfrom bilan",
+      source: { system: "ERP Comptabilité", table: "bilan", column: "capitaux_propres" },
+      data_type: "NUMERIC(14,2)",
+      example: ["680 000,00 €", "665 000,00 €"],
+      owner: "Direction Financière", refresh: "Mensuel, J+1 (clôture comptable)", last_updated: "2026-08-01 18:00",
+      quality: [{ label: "Valeurs non nulles", status: "ok" }]
+    },
+    capex: {
+      domain: "Finance", type: "raw", token: "capex",
+      name: "Dépenses d'investissement (CAPEX)", short: "CAPEX",
+      description: "Montant des acquisitions d'immobilisations sur la période.",
+      sql: "select\n    period,\n    montant_acquisition as capex\nfrom immobilisations",
+      source: { system: "ERP Comptabilité", table: "immobilisations", column: "montant_acquisition" },
+      data_type: "NUMERIC(14,2)",
+      example: ["45 000,00 €", "12 300,00 €", "0,00 €"],
+      owner: "Direction Financière", refresh: "Mensuel, J+1 (clôture comptable)", last_updated: "2026-08-01 18:00",
+      quality: [{ label: "Valeurs non nulles", status: "ok" }]
+    },
+    variation_bfr: {
+      domain: "Finance", type: "raw", token: "variation_bfr",
+      name: "Variation du besoin en fonds de roulement", short: "Var. BFR",
+      description: "Évolution du besoin en fonds de roulement entre le début et la fin de la période.",
+      sql: "select\n    period,\n    variation_bfr\nfrom bilan",
+      source: { system: "ERP Comptabilité", table: "bilan", column: "variation_bfr" },
+      data_type: "NUMERIC(14,2)",
+      example: ["18 200,00 €", "-6 400,00 €"],
+      owner: "Direction Financière", refresh: "Mensuel, J+1 (clôture comptable)", last_updated: "2026-08-01 18:00",
+      quality: [{ label: "Valeurs non nulles", status: "ok" }]
+    },
+
+    // ---- RH ----
+    taux_turnover: {
+      domain: "RH", type: "metric", token: "taux_turnover",
+      name: "Taux de turnover (%)", short: "Turnover",
+      description: "Part de l'effectif ayant quitté l'entreprise sur la période, rapportée à l'effectif moyen.",
+      formula: "{departs} / {effectif_moyen} × 100",
+      sql: "select\n    departs.departs / effectif_moyen.effectif_moyen * 100 as taux_turnover\nfrom departs\njoin effectif_moyen using (period)",
+      owner: "Direction RH", refresh: "Mensuel, le 2 (export SIRH)", last_updated: "2026-08-02 08:00",
+      tags: ["Indicateur nord étoile"],
+      quality: [{ label: "Plage 0 – 30 %", status: "ok" }]
+    },
+    taux_absenteisme: {
+      domain: "RH", type: "metric", token: "taux_absenteisme",
+      name: "Taux d'absentéisme (%)", short: "Absentéisme",
+      description: "Part des jours travaillés théoriques perdue en absence (maladie, accident du travail, absences non justifiées).",
+      formula: "{jours_absence} / {jours_travailles_theoriques} × 100",
+      sql: "select\n    sum(absences.nb_jours) / jours_travailles_theoriques.jours as taux_absenteisme\nfrom absences\njoin jours_travailles_theoriques using (period)",
+      owner: "Direction RH", refresh: "Mensuel, le 2 (export SIRH)", last_updated: "2026-08-02 08:00",
+      quality: [{ label: "Plage 0 – 20 %", status: "ok" }]
+    },
+    masse_salariale_par_etp: {
+      domain: "RH", type: "metric", token: "masse_salariale_par_etp",
+      name: "Masse salariale par ETP", short: "Masse sal. / ETP",
+      description: "Coût salarial moyen chargé par équivalent temps plein sur la période.",
+      formula: "{masse_salariale} / {effectif_moyen}",
+      sql: "select\n    masse_salariale.masse_salariale / effectif_moyen.effectif_moyen as masse_salariale_par_etp\nfrom masse_salariale\njoin effectif_moyen using (period)",
+      owner: "Direction RH", refresh: "Mensuel, le 2 (export SIRH)", last_updated: "2026-08-02 08:00",
+      quality: [{ label: "Cohérence vs budget", status: "ok" }]
+    },
+    effectif_moyen: {
+      domain: "RH", type: "derived", token: "effectif_moyen",
+      name: "Effectif moyen (ETP)", short: "Effectif moyen",
+      description: "Moyenne de l'effectif en équivalent temps plein entre le début et la fin de la période.",
+      formula: "( {effectif_debut_periode} + {effectif_fin_periode} ) / 2",
+      sql: "select\n    (effectifs.effectif_debut + effectifs.effectif_fin) / 2 as effectif_moyen\nfrom effectifs",
+      owner: "Squad Data — RH", refresh: "Mensuel, le 1 (dbt run)", last_updated: "2026-08-01 07:00",
+      quality: [{ label: "Cohérence vs bulletin de paie", status: "ok" }]
+    },
+    departs: {
+      domain: "RH", type: "derived", token: "departs",
+      name: "Départs", short: "Départs",
+      description: "Nombre de salariés ayant quitté l'entreprise sur la période, tous motifs confondus.",
+      formula: "COUNT ( {date_sortie} ∈ période )",
+      sql: "select\n    count(*) as departs\nfrom contrats\nwhere date_sortie between :start_date and :end_date",
+      owner: "Squad Data — RH", refresh: "Mensuel, le 1 (dbt run)", last_updated: "2026-08-01 07:00",
+      quality: [{ label: "Cohérence vs SIRH", status: "ok" }]
+    },
+    masse_salariale: {
+      domain: "RH", type: "derived", token: "masse_salariale",
+      name: "Masse salariale totale", short: "Masse salariale",
+      description: "Somme des salaires bruts versés sur la période, tous contrats confondus.",
+      formula: "Σ {salaire_brut_mensuel}",
+      sql: "select\n    sum(paie.salaire_brut) as masse_salariale\nfrom paie",
+      owner: "Squad Data — RH", refresh: "Mensuel, le 1 (dbt run)", last_updated: "2026-08-01 07:00",
+      quality: [{ label: "Cohérence vs comptabilité", status: "ok" }]
+    },
+    jours_travailles_theoriques: {
+      domain: "RH", type: "derived", token: "jours_travailles_theoriques",
+      name: "Jours travaillés théoriques", short: "Jours théo.",
+      description: "Nombre de jours ouvrés de la période multiplié par l'effectif moyen — dénominateur de l'absentéisme.",
+      formula: "{effectif_moyen} × {jours_ouvres_periode}",
+      sql: "select\n    effectif_moyen.effectif_moyen * calendrier.jours_ouvres as jours\nfrom effectif_moyen\njoin calendrier using (period)",
+      owner: "Squad Data — RH", refresh: "Mensuel, le 1 (dbt run)", last_updated: "2026-08-01 07:00",
+      quality: [{ label: "Cohérence vs calendrier officiel", status: "ok" }]
+    },
+    effectif_debut_periode: {
+      domain: "RH", type: "raw", token: "effectif_debut",
+      name: "Effectif en début de période", short: "Effectif début",
+      description: "Nombre d'ETP actifs au premier jour de la période.",
+      sql: "select\n    period,\n    effectif_debut\nfrom effectifs",
+      source: { system: "SIRH", table: "effectifs", column: "effectif_debut" },
+      data_type: "NUMERIC(6,2)",
+      example: ["84,50", "86,00", "85,20"],
+      owner: "Direction RH", refresh: "Mensuel, le 1 (export SIRH)", last_updated: "2026-08-01 06:00",
+      quality: [{ label: "Valeurs non nulles", status: "ok" }]
+    },
+    effectif_fin_periode: {
+      domain: "RH", type: "raw", token: "effectif_fin",
+      name: "Effectif en fin de période", short: "Effectif fin",
+      description: "Nombre d'ETP actifs au dernier jour de la période.",
+      sql: "select\n    period,\n    effectif_fin\nfrom effectifs",
+      source: { system: "SIRH", table: "effectifs", column: "effectif_fin" },
+      data_type: "NUMERIC(6,2)",
+      example: ["86,00", "85,20", "87,10"],
+      owner: "Direction RH", refresh: "Mensuel, le 1 (export SIRH)", last_updated: "2026-08-01 06:00",
+      quality: [{ label: "Valeurs non nulles", status: "ok" }]
+    },
+    date_sortie: {
+      domain: "RH", type: "raw", token: "date_sortie",
+      name: "Date de sortie", short: "Date sortie",
+      description: "Date de fin de contrat effective du salarié.",
+      sql: "select\n    salarie_id,\n    date_sortie,\n    motif_depart\nfrom contrats",
+      source: { system: "SIRH", table: "contrats", column: "date_sortie" },
+      data_type: "DATE",
+      example: ["2026-06-14", "2026-07-30", "—"],
+      owner: "Direction RH", refresh: "Quotidien 06h00 (export SIRH)", last_updated: "2026-08-20 06:03",
+      tags: ["Donnée personnelle (RGPD)"],
+      quality: [{ label: "Cohérence vs date d'entrée", status: "ok" }]
+    },
+    salaire_brut_mensuel: {
+      domain: "RH", type: "raw", token: "salaire_brut",
+      name: "Salaire brut mensuel", short: "Salaire brut",
+      description: "Rémunération brute mensuelle contractuelle du salarié.",
+      sql: "select\n    salarie_id,\n    salaire_brut\nfrom paie",
+      source: { system: "Logiciel de paie", table: "paie", column: "salaire_brut" },
+      data_type: "NUMERIC(10,2)",
+      example: ["2 850,00 €", "3 400,00 €", "2 100,00 €"],
+      owner: "Direction RH", refresh: "Mensuel, le 1 (export paie)", last_updated: "2026-08-01 06:00",
+      tags: ["Donnée personnelle (RGPD)"],
+      quality: [{ label: "Valeurs non nulles", status: "ok" }, { label: "Cohérence vs grille salariale", status: "warn", note: "3 écarts détectés vs grille de référence" }]
+    },
+    jours_absence: {
+      domain: "RH", type: "raw", token: "nb_jours",
+      name: "Jours d'absence", short: "Jours absence",
+      description: "Nombre de jours d'absence par salarié et par motif (maladie, accident du travail, injustifié).",
+      sql: "select\n    salarie_id,\n    motif,\n    nb_jours\nfrom absences",
+      source: { system: "SIRH", table: "absences", column: "nb_jours" },
+      data_type: "NUMERIC(5,1)",
+      example: ["3,0", "1,0", "14,0"],
+      owner: "Direction RH", refresh: "Quotidien 06h00 (export SIRH)", last_updated: "2026-08-20 06:03",
+      tags: ["Donnée personnelle (RGPD)"],
+      quality: [{ label: "Valeurs non nulles", status: "ok" }]
+    },
+    jours_ouvres_periode: {
+      domain: "RH", type: "raw", token: "jours_ouvres",
+      name: "Jours ouvrés de la période", short: "Jours ouvrés",
+      description: "Nombre de jours ouvrés du calendrier légal sur la période, hors jours fériés.",
+      sql: "select\n    period,\n    jours_ouvres\nfrom calendrier",
+      source: { system: "SIRH", table: "calendrier", column: "jours_ouvres" },
+      data_type: "INTEGER",
+      example: ["21", "22", "20"],
+      owner: "Direction RH", refresh: "Annuel (calendrier légal)", last_updated: "2026-01-02 09:00",
+      quality: [{ label: "Cohérence vs calendrier officiel", status: "ok" }]
+    },
+
+    // ---- Gestion de projets ----
+    taux_livraison_delai: {
+      domain: "Gestion", type: "metric", token: "taux_livraison_delai",
+      name: "Taux de projets livrés à temps (%)", short: "Livraison à temps",
+      description: "Part des projets clôturés dans la période dont la livraison réelle respecte la date prévue.",
+      formula: "{projets_a_temps} / {projets_totaux} × 100",
+      sql: "select\n    projets_a_temps.projets_a_temps / projets_totaux.projets_totaux * 100 as taux_livraison_delai\nfrom projets_a_temps\njoin projets_totaux using (period)",
+      owner: "PMO", refresh: "Hebdomadaire, lundi 08h00 (dbt run)", last_updated: "2026-08-18 08:03",
+      tags: ["Indicateur nord étoile"],
+      quality: [{ label: "Plage 0 – 100 %", status: "ok" }]
+    },
+    cout_moyen_projet: {
+      domain: "Gestion", type: "metric", token: "cout_moyen_projet",
+      name: "Coût moyen par projet", short: "Coût moyen",
+      description: "Dépenses réelles moyennes engagées par projet clôturé sur la période.",
+      formula: "{cout_total_projets} / {projets_totaux}",
+      sql: "select\n    cout_total_projets.cout_total_projets / projets_totaux.projets_totaux as cout_moyen_projet\nfrom cout_total_projets\njoin projets_totaux using (period)",
+      owner: "PMO", refresh: "Hebdomadaire, lundi 08h00 (dbt run)", last_updated: "2026-08-18 08:03",
+      quality: [{ label: "Cohérence vs budget prévisionnel", status: "ok" }]
+    },
+    taux_utilisation_ressources: {
+      domain: "Gestion", type: "metric", token: "taux_utilisation_ressources",
+      name: "Taux d'utilisation des ressources (%)", short: "Utilisation ress.",
+      description: "Part de la capacité disponible des équipes effectivement facturée à des projets sur la période.",
+      formula: "{heures_facturees} / {heures_disponibles} × 100",
+      sql: "select\n    heures_facturees.heures_facturees / heures_disponibles.heures_disponibles * 100 as taux_utilisation_ressources\nfrom heures_facturees\njoin heures_disponibles using (period)",
+      owner: "PMO", refresh: "Hebdomadaire, lundi 08h00 (dbt run)", last_updated: "2026-08-18 08:03",
+      quality: [{ label: "Plage 0 – 100 %", status: "warn", note: "112 % ce mois-ci — heures supplémentaires non plafonnées dans l'outil de temps" }]
+    },
+    projets_a_temps: {
+      domain: "Gestion", type: "derived", token: "projets_a_temps",
+      name: "Projets livrés à temps", short: "Projets à temps",
+      description: "Nombre de projets dont la date de livraison réelle est antérieure ou égale à la date prévue.",
+      formula: "COUNT ( {date_livraison_reelle} ≤ {date_livraison_prevue} )",
+      sql: "select\n    count(*) as projets_a_temps\nfrom projets\nwhere date_livraison_reelle <= date_livraison_prevue\nand date_livraison_reelle between :start_date and :end_date",
+      owner: "Squad Data — Gestion de projet", refresh: "Hebdomadaire, lundi 07h00 (dbt run)", last_updated: "2026-08-18 07:04",
+      quality: [{ label: "Cohérence vs PMO", status: "ok" }]
+    },
+    projets_totaux: {
+      domain: "Gestion", type: "derived", token: "projets_totaux",
+      name: "Projets clôturés", short: "Projets totaux",
+      description: "Nombre total de projets distincts clôturés sur la période.",
+      formula: "COUNT DISTINCT ( {projet_id} )",
+      sql: "select\n    count(distinct projet_id) as projets_totaux\nfrom projets\nwhere date_livraison_reelle between :start_date and :end_date",
+      owner: "Squad Data — Gestion de projet", refresh: "Hebdomadaire, lundi 07h00 (dbt run)", last_updated: "2026-08-18 07:04",
+      quality: [{ label: "Unicité projet_id", status: "ok" }]
+    },
+    cout_total_projets: {
+      domain: "Gestion", type: "derived", token: "cout_total_projets",
+      name: "Coût total des projets", short: "Coût total",
+      description: "Somme des dépenses réelles engagées sur les projets clôturés de la période.",
+      formula: "Σ {depenses_reelles_projet}",
+      sql: "select\n    sum(suivi_couts.depenses_reelles) as cout_total_projets\nfrom suivi_couts\njoin projets using (projet_id)\nwhere projets.date_livraison_reelle between :start_date and :end_date",
+      owner: "Squad Data — Gestion de projet", refresh: "Hebdomadaire, lundi 07h00 (dbt run)", last_updated: "2026-08-18 07:04",
+      quality: [{ label: "Cohérence vs contrôle de gestion", status: "ok" }]
+    },
+    heures_disponibles: {
+      domain: "Gestion", type: "derived", token: "heures_disponibles",
+      name: "Heures disponibles", short: "Heures dispo.",
+      description: "Capacité théorique totale des équipes sur la période, effectif moyen multiplié par la capacité journalière.",
+      formula: "{effectif_moyen} × {capacite_theorique_h}",
+      sql: "select\n    effectif_moyen.effectif_moyen * parametrage.capacite_h_jour * calendrier.jours_ouvres as heures_disponibles\nfrom effectif_moyen\njoin parametrage on true\njoin calendrier using (period)",
+      owner: "Squad Data — Gestion de projet", refresh: "Hebdomadaire, lundi 07h00 (dbt run)", last_updated: "2026-08-18 07:04",
+      quality: [{ label: "Cohérence vs RH", status: "ok" }]
+    },
+    date_livraison_prevue: {
+      domain: "Gestion", type: "raw", token: "date_livraison_prevue",
+      name: "Date de livraison prévue", short: "Livraison prévue",
+      description: "Date de livraison contractuelle du projet, fixée au lancement.",
+      sql: "select\n    projet_id,\n    date_livraison_prevue\nfrom projets",
+      source: { system: "ERP Projets", table: "projets", column: "date_livraison_prevue" },
+      data_type: "DATE",
+      example: ["2026-06-30", "2026-07-15", "2026-08-01"],
+      owner: "PMO", refresh: "Quotidien 05h00 (Airflow)", last_updated: "2026-08-20 05:06",
+      quality: [{ label: "Valeurs non nulles", status: "ok" }]
+    },
+    date_livraison_reelle: {
+      domain: "Gestion", type: "raw", token: "date_livraison_reelle",
+      name: "Date de livraison réelle", short: "Livraison réelle",
+      description: "Date à laquelle le projet a effectivement été clôturé et livré au client interne ou externe.",
+      sql: "select\n    projet_id,\n    date_livraison_reelle\nfrom projets",
+      source: { system: "ERP Projets", table: "projets", column: "date_livraison_reelle" },
+      data_type: "DATE",
+      example: ["2026-07-02", "2026-07-15", "2026-08-09"],
+      owner: "PMO", refresh: "Quotidien 05h00 (Airflow)", last_updated: "2026-08-20 05:06",
+      quality: [{ label: "Valeurs non nulles", status: "warn", note: "6 projets en cours sans date de livraison réelle (normal, non clôturés)" }]
+    },
+    projet_id: {
+      domain: "Gestion", type: "raw", token: "projet_id",
+      name: "Identifiant projet", short: "ID projet",
+      description: "Identifiant unique du projet dans l'ERP Projets.",
+      sql: "select\n    projet_id,\n    nom_projet\nfrom projets",
+      source: { system: "ERP Projets", table: "projets", column: "projet_id" },
+      data_type: "VARCHAR",
+      example: ["PRJ-0512", "PRJ-0513", "PRJ-0514"],
+      owner: "PMO", refresh: "Quotidien 05h00 (Airflow)", last_updated: "2026-08-20 05:06",
+      quality: [{ label: "Unicité", status: "ok" }]
+    },
+    depenses_reelles_projet: {
+      domain: "Gestion", type: "raw", token: "depenses_reelles",
+      name: "Dépenses réelles projet", short: "Dépenses réelles",
+      description: "Montant total dépensé sur le projet (charges internes valorisées + achats externes), mis à jour au fil de l'eau.",
+      sql: "select\n    projet_id,\n    depenses_reelles\nfrom suivi_couts",
+      source: { system: "ERP Projets", table: "suivi_couts", column: "depenses_reelles" },
+      data_type: "NUMERIC(12,2)",
+      example: ["48 200,00 €", "112 400,00 €", "6 900,00 €"],
+      owner: "PMO", refresh: "Quotidien 05h00 (Airflow)", last_updated: "2026-08-20 05:06",
+      quality: [{ label: "Valeurs non nulles", status: "ok" }]
+    },
+    heures_facturees: {
+      domain: "Gestion", type: "raw", token: "heures_facturables",
+      name: "Heures facturées", short: "Heures facturées",
+      description: "Heures saisies par les équipes et imputées à un projet dans l'outil de gestion du temps.",
+      sql: "select\n    salarie_id,\n    projet_id,\n    heures_facturables\nfrom feuilles_temps",
+      source: { system: "Outil de temps", table: "feuilles_temps", column: "heures_facturables" },
+      data_type: "NUMERIC(6,2)",
+      example: ["7,50", "8,00", "3,25"],
+      owner: "Squad Data — Gestion de projet", refresh: "Quotidien 06h00 (connecteur outil de temps)", last_updated: "2026-08-20 06:04",
+      quality: [{ label: "Valeurs non nulles", status: "ok" }]
+    },
+    capacite_theorique_h: {
+      domain: "Gestion", type: "raw", token: "capacite_h_jour",
+      name: "Capacité théorique journalière", short: "Capacité / jour",
+      description: "Nombre d'heures travaillées théoriques par ETP et par jour, paramétré au niveau de l'entreprise.",
+      sql: "select\n    capacite_h_jour\nfrom parametrage",
+      source: { system: "Outil de temps", table: "parametrage", column: "capacite_h_jour" },
+      data_type: "NUMERIC(4,2)",
+      example: ["7,00"],
+      owner: "PMO", refresh: "Rarement modifié (paramétrage RH)", last_updated: "2026-01-02 09:00",
+      quality: [{ label: "Valeur unique cohérente", status: "ok" }]
+    },
+
+    // ---- Investissement ----
+    roi_pct: {
+      domain: "Investissement", type: "metric", token: "roi_pct",
+      name: "Retour sur investissement (ROI %)", short: "ROI",
+      description: "Gain net généré par un investissement rapporté au montant initialement investi.",
+      formula: "( {gain_investissement} − {montant_investi} ) / {montant_investi} × 100",
+      sql: "select\n    (gain_investissement.gain_investissement - investissements.montant_initial) / investissements.montant_initial * 100 as roi_pct\nfrom gain_investissement\njoin investissements using (investissement_id)",
+      owner: "Direction Financière", refresh: "Trimestriel (revue budgétaire)", last_updated: "2026-07-15 10:00",
+      tags: ["Indicateur nord étoile"],
+      quality: [{ label: "Cohérence vs business case initial", status: "ok" }]
+    },
+    payback_mois: {
+      domain: "Investissement", type: "metric", token: "payback_mois",
+      name: "Délai de retour sur investissement (mois)", short: "Payback",
+      description: "Nombre de mois nécessaires pour que les flux de trésorerie générés couvrent le montant investi.",
+      formula: "{montant_investi} / {flux_mensuel_moyen}",
+      sql: "select\n    investissements.montant_initial / flux_mensuel_moyen.flux_mensuel_moyen as payback_mois\nfrom investissements\njoin flux_mensuel_moyen using (investissement_id)",
+      owner: "Direction Financière", refresh: "Trimestriel (revue budgétaire)", last_updated: "2026-07-15 10:00",
+      quality: [{ label: "Valeur positive attendue", status: "ok" }]
+    },
+    van: {
+      domain: "Investissement", type: "metric", token: "van",
+      name: "Valeur actuelle nette (VAN)", short: "VAN",
+      description: "Somme des flux de trésorerie futurs actualisés, diminuée du montant investi — un investissement est jugé rentable si sa VAN est positive.",
+      formula: "Σ ( {flux_tresorerie_annuel} / (1 + {taux_actualisation})ⁿ ) − {montant_investi}",
+      sql: "select\n    sum(flux_tresorerie_annuel.flux_annuel / power(1 + parametrage_financier.taux_actualisation, flux_tresorerie_annuel.annee)) - investissements.montant_initial as van\nfrom flux_tresorerie_annuel\njoin investissements using (investissement_id)\njoin parametrage_financier on true",
+      owner: "Direction Financière", refresh: "Trimestriel (revue budgétaire)", last_updated: "2026-07-15 10:00",
+      quality: [{ label: "Sensibilité au taux d'actualisation documentée", status: "warn", note: "Pas de test de sensibilité automatisé pour l'instant" }]
+    },
+    gain_investissement: {
+      domain: "Investissement", type: "derived", token: "gain_investissement",
+      name: "Gain cumulé de l'investissement", short: "Gain cumulé",
+      description: "Somme des flux de trésorerie générés par l'investissement depuis sa mise en service.",
+      formula: "Σ {flux_tresorerie_annuel}",
+      sql: "select\n    investissement_id,\n    sum(flux_annuel) as gain_investissement\nfrom flux_tresorerie_annuel\ngroup by investissement_id",
+      owner: "Squad Data — Finance", refresh: "Trimestriel (dbt run)", last_updated: "2026-07-14 07:00",
+      quality: [{ label: "Cohérence vs comptabilité analytique", status: "ok" }]
+    },
+    flux_mensuel_moyen: {
+      domain: "Investissement", type: "derived", token: "flux_mensuel_moyen",
+      name: "Flux de trésorerie mensuel moyen", short: "Flux mensuel",
+      description: "Gain cumulé de l'investissement ramené à un flux mensuel moyen sur 12 mois.",
+      formula: "{gain_investissement} / 12",
+      sql: "select\n    investissement_id,\n    gain_investissement / 12 as flux_mensuel_moyen\nfrom gain_investissement",
+      owner: "Squad Data — Finance", refresh: "Trimestriel (dbt run)", last_updated: "2026-07-14 07:00",
+      quality: [{ label: "Valeur positive attendue", status: "ok" }]
+    },
+    montant_investi: {
+      domain: "Investissement", type: "raw", token: "montant_initial",
+      name: "Montant investi", short: "Montant investi",
+      description: "Montant initial engagé lors du lancement de l'investissement (achat d'immobilisation, prise de participation, projet interne).",
+      sql: "select\n    investissement_id,\n    libelle,\n    montant_initial\nfrom investissements",
+      source: { system: "Contrôle de gestion", table: "investissements", column: "montant_initial" },
+      data_type: "NUMERIC(14,2)",
+      example: ["250 000,00 €", "80 000,00 €", "1 200 000,00 €"],
+      owner: "Direction Financière", refresh: "À la création de l'investissement", last_updated: "2026-05-12 14:00",
+      quality: [{ label: "Valeurs non nulles", status: "ok" }]
+    },
+    flux_tresorerie_annuel: {
+      domain: "Investissement", type: "raw", token: "flux_annuel",
+      name: "Flux de trésorerie annuel", short: "Flux annuel",
+      description: "Flux de trésorerie net généré par l'investissement pour chaque année depuis sa mise en service.",
+      sql: "select\n    investissement_id,\n    annee,\n    flux_annuel\nfrom flux_tresorerie_annuel",
+      source: { system: "Contrôle de gestion", table: "flux_tresorerie_annuel", column: "flux_annuel" },
+      data_type: "NUMERIC(14,2)",
+      example: ["95 000,00 €", "102 000,00 €", "88 500,00 €"],
+      owner: "Direction Financière", refresh: "Trimestriel (revue budgétaire)", last_updated: "2026-07-15 10:00",
+      quality: [{ label: "Valeurs non nulles", status: "ok" }]
+    },
+    taux_actualisation: {
+      domain: "Investissement", type: "raw", token: "taux_actualisation",
+      name: "Taux d'actualisation", short: "Taux actu.",
+      description: "Taux utilisé pour ramener les flux de trésorerie futurs à leur valeur actuelle (coût moyen pondéré du capital de l'entreprise).",
+      sql: "select\n    taux_actualisation\nfrom parametrage_financier",
+      source: { system: "Contrôle de gestion", table: "parametrage_financier", column: "taux_actualisation" },
+      data_type: "NUMERIC(5,4)",
+      example: ["0,0800"],
+      owner: "Direction Financière", refresh: "Annuel (revue budgétaire)", last_updated: "2026-01-05 10:00",
+      quality: [{ label: "Valeur unique cohérente", status: "ok" }]
+    },
+
+    // ---- Data ----
+    taux_fraicheur_pipelines: {
+      domain: "Data", type: "metric", token: "taux_fraicheur_pipelines",
+      name: "Taux de fraîcheur des pipelines (%)", short: "Fraîcheur pipelines",
+      description: "Part des pipelines de données dont la dernière exécution respecte le SLA de fraîcheur défini.",
+      formula: "{pipelines_a_jour} / {pipelines_totaux} × 100",
+      sql: "select\n    pipelines_a_jour.pipelines_a_jour / pipelines_totaux.pipelines_totaux * 100 as taux_fraicheur_pipelines\nfrom pipelines_a_jour\njoin pipelines_totaux using (period)",
+      owner: "Data Engineering", refresh: "Toutes les heures (monitoring)", last_updated: "2026-08-21 14:00",
+      tags: ["Indicateur nord étoile"],
+      quality: [{ label: "Plage 0 – 100 %", status: "ok" }]
+    },
+    taux_succes_jobs: {
+      domain: "Data", type: "metric", token: "taux_succes_jobs",
+      name: "Taux de succès des jobs (%)", short: "Succès jobs",
+      description: "Part des exécutions de pipelines terminées avec succès sur la période, tous pipelines confondus.",
+      formula: "{jobs_reussis} / {jobs_totaux} × 100",
+      sql: "select\n    jobs_reussis.jobs_reussis / jobs_totaux.jobs_totaux * 100 as taux_succes_jobs\nfrom jobs_reussis\njoin jobs_totaux using (period)",
+      owner: "Data Engineering", refresh: "Toutes les heures (monitoring)", last_updated: "2026-08-21 14:00",
+      quality: [{ label: "Plage 0 – 100 %", status: "warn", note: "94,2 % ce mois-ci — un connecteur instable (voir vue Systèmes)" }]
+    },
+    score_qualite_donnees: {
+      domain: "Data", type: "metric", token: "score_qualite_donnees",
+      name: "Score de qualité des données (%)", short: "Score qualité",
+      description: "Part des tests dbt (non-null, unicité, relations, plages de valeurs) qui passent sur la dernière exécution complète.",
+      formula: "{tests_dbt_passes} / {tests_dbt_totaux} × 100",
+      sql: "select\n    tests_dbt_passes.tests_dbt_passes / tests_dbt_totaux.tests_dbt_totaux * 100 as score_qualite_donnees\nfrom tests_dbt_passes\njoin tests_dbt_totaux using (run_id)",
+      owner: "Data Engineering", refresh: "À chaque run dbt (quotidien 06h30)", last_updated: "2026-08-21 06:34",
+      quality: [{ label: "Plage 0 – 100 %", status: "ok" }]
+    },
+    pipelines_a_jour: {
+      domain: "Data", type: "derived", token: "pipelines_a_jour",
+      name: "Pipelines à jour", short: "Pipelines à jour",
+      description: "Nombre de pipelines dont le délai depuis la dernière exécution reste sous le SLA de fraîcheur défini pour ce pipeline.",
+      formula: "COUNT ( {derniere_execution} ≤ {sla_fraicheur_h} )",
+      sql: "select\n    count(*) as pipelines_a_jour\nfrom dag_runs\njoin pipelines_meta using (pipeline_id)\nwhere now() - execution_date <= (sla_heures || ' hours')::interval",
+      owner: "Squad Data — Plateforme", refresh: "Toutes les heures (monitoring)", last_updated: "2026-08-21 14:00",
+      quality: [{ label: "Cohérence vs orchestrateur", status: "ok" }]
+    },
+    pipelines_totaux: {
+      domain: "Data", type: "derived", token: "pipelines_totaux",
+      name: "Pipelines actifs", short: "Pipelines totaux",
+      description: "Nombre de pipelines distincts actifs dans l'orchestrateur.",
+      formula: "COUNT DISTINCT ( {pipeline_id} )",
+      sql: "select\n    count(distinct dag_id) as pipelines_totaux\nfrom dag_runs",
+      owner: "Squad Data — Plateforme", refresh: "Toutes les heures (monitoring)", last_updated: "2026-08-21 14:00",
+      quality: [{ label: "Cohérence vs orchestrateur", status: "ok" }]
+    },
+    jobs_reussis: {
+      domain: "Data", type: "derived", token: "jobs_reussis",
+      name: "Jobs réussis", short: "Jobs réussis",
+      description: "Nombre d'exécutions de pipelines terminées avec le statut succès sur la période.",
+      formula: "COUNT ( {statut_run} = 'success' )",
+      sql: "select\n    count(*) as jobs_reussis\nfrom dag_runs\nwhere state = 'success'\nand execution_date between :start_date and :end_date",
+      owner: "Squad Data — Plateforme", refresh: "Toutes les heures (monitoring)", last_updated: "2026-08-21 14:00",
+      quality: [{ label: "Cohérence vs orchestrateur", status: "ok" }]
+    },
+    jobs_totaux: {
+      domain: "Data", type: "derived", token: "jobs_totaux",
+      name: "Jobs exécutés", short: "Jobs totaux",
+      description: "Nombre total d'exécutions de pipelines sur la période, tous statuts confondus.",
+      formula: "COUNT ( {statut_run} )",
+      sql: "select\n    count(*) as jobs_totaux\nfrom dag_runs\nwhere execution_date between :start_date and :end_date",
+      owner: "Squad Data — Plateforme", refresh: "Toutes les heures (monitoring)", last_updated: "2026-08-21 14:00",
+      quality: [{ label: "Cohérence vs orchestrateur", status: "ok" }]
+    },
+    tests_dbt_passes: {
+      domain: "Data", type: "derived", token: "tests_dbt_passes",
+      name: "Tests dbt réussis", short: "Tests réussis",
+      description: "Nombre de tests dbt (non-null, unicité, relations, accepted_values) au statut 'pass' sur la dernière exécution complète.",
+      formula: "COUNT ( {statut_test_dbt} = 'pass' )",
+      sql: "select\n    count(*) as tests_dbt_passes\nfrom run_results\nwhere resource_type = 'test'\nand status = 'pass'\nand run_id = (select max(run_id) from run_results)",
+      owner: "Squad Data — Plateforme", refresh: "À chaque run dbt (quotidien 06h30)", last_updated: "2026-08-21 06:34",
+      quality: [{ label: "Cohérence vs run_results.json", status: "ok" }]
+    },
+    tests_dbt_totaux: {
+      domain: "Data", type: "derived", token: "tests_dbt_totaux",
+      name: "Tests dbt exécutés", short: "Tests totaux",
+      description: "Nombre total de tests dbt exécutés sur la dernière exécution complète, tous statuts confondus.",
+      formula: "COUNT ( {statut_test_dbt} )",
+      sql: "select\n    count(*) as tests_dbt_totaux\nfrom run_results\nwhere resource_type = 'test'\nand run_id = (select max(run_id) from run_results)",
+      owner: "Squad Data — Plateforme", refresh: "À chaque run dbt (quotidien 06h30)", last_updated: "2026-08-21 06:34",
+      quality: [{ label: "Cohérence vs run_results.json", status: "ok" }]
+    },
+    pipeline_id: {
+      domain: "Data", type: "raw", token: "dag_id",
+      name: "Identifiant pipeline", short: "ID pipeline",
+      description: "Identifiant unique du pipeline (DAG) dans l'orchestrateur.",
+      sql: "select\n    dag_id,\n    run_id,\n    execution_date,\n    state\nfrom dag_runs",
+      source: { system: "Orchestrateur (Airflow)", table: "dag_runs", column: "dag_id" },
+      data_type: "VARCHAR",
+      example: ["dag_ecommerce_daily", "dag_finance_monthly", "dag_rh_export"],
+      owner: "Data Engineering", refresh: "Temps réel (métadonnées d'exécution)", last_updated: "2026-08-21 14:12",
+      quality: [{ label: "Cohérence vs catalogue de pipelines", status: "ok" }]
+    },
+    derniere_execution: {
+      domain: "Data", type: "raw", token: "execution_date",
+      name: "Date de dernière exécution", short: "Dernière exéc.",
+      description: "Horodatage de la dernière exécution du pipeline, réussie ou non.",
+      sql: "select\n    dag_id,\n    max(execution_date) as execution_date\nfrom dag_runs\ngroup by dag_id",
+      source: { system: "Orchestrateur (Airflow)", table: "dag_runs", column: "execution_date" },
+      data_type: "TIMESTAMP",
+      example: ["2026-08-21 14:05", "2026-08-21 06:32", "2026-08-19 22:10"],
+      owner: "Data Engineering", refresh: "Temps réel (métadonnées d'exécution)", last_updated: "2026-08-21 14:12",
+      quality: [{ label: "Valeurs non nulles", status: "ok" }]
+    },
+    sla_fraicheur_h: {
+      domain: "Data", type: "raw", token: "sla_heures",
+      name: "SLA de fraîcheur (heures)", short: "SLA fraîcheur",
+      description: "Délai maximal accepté entre deux exécutions d'un pipeline, défini par son propriétaire dans le catalogue de données.",
+      sql: "select\n    pipeline_id,\n    sla_heures\nfrom pipelines_meta",
+      source: { system: "Catalogue de données", table: "pipelines_meta", column: "sla_heures" },
+      data_type: "INTEGER",
+      example: ["24", "1", "168"],
+      owner: "Data Engineering", refresh: "Modifié à la demande (catalogue)", last_updated: "2026-06-10 11:00",
+      quality: [{ label: "Valeurs non nulles", status: "ok" }]
+    },
+    statut_run: {
+      domain: "Data", type: "raw", token: "state",
+      name: "Statut d'exécution", short: "Statut run",
+      description: "Statut final de l'exécution du pipeline (success, failed, running, skipped).",
+      sql: "select\n    dag_id,\n    run_id,\n    state\nfrom dag_runs",
+      source: { system: "Orchestrateur (Airflow)", table: "dag_runs", column: "state" },
+      data_type: "VARCHAR",
+      example: ["success", "success", "failed"],
+      owner: "Data Engineering", refresh: "Temps réel (métadonnées d'exécution)", last_updated: "2026-08-21 14:12",
+      quality: [{ label: "Valeurs dans l'énumération attendue", status: "ok" }]
+    },
+    statut_test_dbt: {
+      domain: "Data", type: "raw", token: "status",
+      name: "Statut de test dbt", short: "Statut test dbt",
+      description: "Résultat d'un test dbt individuel (pass, fail, warn, error) sur la dernière exécution complète.",
+      sql: "select\n    run_id,\n    unique_id,\n    status\nfrom run_results\nwhere resource_type = 'test'",
+      source: { system: "dbt (run_results.json)", table: "run_results", column: "status" },
+      data_type: "VARCHAR",
+      example: ["pass", "pass", "fail"],
+      owner: "Squad Data — Plateforme", refresh: "À chaque run dbt (quotidien 06h30)", last_updated: "2026-08-21 06:34",
+      quality: [{ label: "Valeurs dans l'énumération attendue", status: "ok" }]
     }
   };
 

@@ -43,9 +43,10 @@
 Une page unique (`index.html`, aucune dépendance) avec deux jeux de données,
 au choix dans la barre latérale :
 
-- **Démo** — un scénario fictif (marge brute, CAC, taux de conversion...) sur
-  deux domaines (Ventes/Marketing), pour démontrer le concept sans dépendre
-  d'un vrai projet.
+- **Démo** — un scénario fictif (marge brute, EBITDA, taux de turnover, ROI,
+  score de qualité des données...) sur sept domaines (Ventes, Marketing,
+  Finance, RH, Gestion de projets, Investissement, Data), pour démontrer le
+  concept sans dépendre d'un vrai projet.
 - **Projet réel** — introspecté depuis le [Projet 10](../projet-10-pipeline-elt)
   (`dbt_ecommerce`) : rien n'est inventé, tout vient de `manifest.json` /
   `catalog.json` / `run_results.json`.
@@ -133,7 +134,7 @@ qui peut agir — pas si l'action est sûre.
 
 | Jeu de données | Nœuds | Détail |
 |---|---|---|
-| Démo (fictif) | 15 | 2 domaines, 5 niveaux de profondeur |
+| Démo (fictif) | 76 | 7 domaines (Ventes, Marketing, Finance, RH, Gestion, Investissement, Data), 5 niveaux de profondeur |
 | Projet réel (dbt_ecommerce) | 13 | 5 sources + 4 staging + 3 dimensions + 1 fait |
 | Tests dbt affichés (jeu réel) | 28 | statut réel du dernier `dbt run` — 28/28 PASS |
 | Colonnes avec lignage colonne-à-colonne | 33 | résolu par sqlglot sur le SQL compilé, y compris à travers CTE/joins/`generate_series` |
