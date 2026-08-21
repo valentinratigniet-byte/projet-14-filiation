@@ -259,16 +259,19 @@ raccourci technique.
 
 ### Bases de données multiples (fusion réelle)
 
-- [ ] La ROADMAP chantier 1 a déjà identifié la **fusion multi-sources**
-      comme un point en attente (`scan_database.py` écrase le rapport
-      précédent à chaque lancement plutôt que de fusionner). Ce chantier est
-      l'occasion de la construire pour de vrai plutôt que dans l'abstrait :
-      scanner successivement deux systèmes réellement différents du poste
-      (par ex. un Postgres jetable + un MySQL jetable, sur le modèle du test
-      MySQL déjà fait) et vérifier qu'ils apparaissent bien ensemble dans la
-      vue Systèmes, avec les collisions d'identifiants de nœuds gérées
-      (préfixer par système, déjà noté dans le point correspondant du
-      chantier 1).
+- [x] **Fusion multi-sources construite ET testée en réel** — fait le
+      2026-08-21/22. `scan_database.py --merge` (voir chantier 1) validé
+      d'abord contre un conteneur jetable, puis en conditions réelles :
+      accord donné par Valentin (chef de projet) et Baptiste pour utiliser
+      les systèmes du projet partagé `bv-dataplatform` comme premier vrai
+      test multi-systèmes. Fusion du jeu réel `dbt_ecommerce` (13 nœuds)
+      avec `bv-postgres-dbtdev` (23 tables, schémas `erp_migre`/
+      `public_marts`/`raw`) et `bv-mysql-crm` (3 tables, schéma `crm`) → 39
+      nœuds, 3 systèmes distincts dans la vue Systèmes, aucune collision
+      d'id. Seule la structure (tables/colonnes/types/volumétrie/checks
+      qualité) est capturée — `scan_database.py` n'extrait jamais de valeur
+      de donnée. Commité et poussé sur le repo public avec l'accord
+      explicite des deux (voir [[projet-baptiste-valentin]]).
 - [ ] Documenter clairement, une fois ce chantier commencé, la limite de
       `scan_database.py` : basé sur SQLAlchemy, donc uniquement des bases
       relationnelles (Postgres/MySQL/SQL Server/SQLite...) — pas MongoDB
