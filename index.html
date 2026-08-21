@@ -518,6 +518,30 @@
   .node-name { font-size: 1.6rem; font-weight: 600; margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
   .node-desc { margin: 0; color: var(--text-muted); max-width: 62ch; line-height: 1.6; font-size: 0.95rem; }
 
+  .ai-suggestion {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    max-width: 62ch;
+    border: 1px dashed var(--accent);
+    border-radius: 8px;
+    padding: 0.6rem 0.8rem;
+  }
+
+  .ai-suggestion-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    width: fit-content;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.66rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--accent);
+  }
+
+  .ai-suggestion p { margin: 0; color: var(--text); line-height: 1.6; font-size: 0.9rem; font-style: italic; }
+
   .lineage-figure { margin: 0; }
   .lineage-figure svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }
   .lineage-figure figcaption { text-align: center; font-size: 0.78rem; color: var(--text-muted); margin-top: 0.4rem; }
@@ -1728,7 +1752,8 @@
     "tags": [
       "Donnée personnelle (RGPD)"
     ],
-    "rowCount": 5000
+    "rowCount": 5000,
+    "aiSuggestion": "Cette table contient les informations de contact et d'identité d'un client, y compris son adresse e-mail, son nom, son pays et la date de création de son compte."
   },
   "src_category": {
     "domain": "Sources",
@@ -1761,7 +1786,8 @@
         "tests": []
       }
     ],
-    "rowCount": 10
+    "rowCount": 10,
+    "aiSuggestion": "Cette table contient les catégories d'origine, avec des noms et des parents qui laissent supposer qu'elles sont liées à une base de données de sources."
   },
   "src_product": {
     "domain": "Sources",
@@ -1821,7 +1847,8 @@
         "refColumn": "id"
       }
     ],
-    "rowCount": 2000
+    "rowCount": 2000,
+    "aiSuggestion": "Cette table contient des informations sur les produits disponibles, y compris leur nom, catégorie et prix, ainsi que des indicateurs de leur activité et de leur création."
   },
   "src_orders": {
     "domain": "Sources",
@@ -1866,7 +1893,8 @@
         "refColumn": "id"
       }
     ],
-    "rowCount": 40400
+    "rowCount": 40400,
+    "aiSuggestion": "Cette table contient les informations sur les commandes passées par les clients, y compris la date de réception et le statut de la commande."
   },
   "src_order_item": {
     "domain": "Sources",
@@ -1916,7 +1944,8 @@
         "refColumn": "id"
       }
     ],
-    "rowCount": 121331
+    "rowCount": 121331,
+    "aiSuggestion": "Cette table contient les détails des articles commandés dans un achat, en précisant l'ID de l'ordre, le produit commandé, la quantité et le prix unitaire."
   },
   "dim_customer": {
     "domain": "Dimensions & faits",
@@ -2274,7 +2303,8 @@
     "tags": [
       "Donnée personnelle (RGPD)"
     ],
-    "rowCount": 5000
+    "rowCount": 5000,
+    "aiSuggestion": "Cette table contient les informations sur les utilisateurs, en particulier leur adresse e-mail, leur nom complet et leur pays de résidence."
   },
   "stg_orders": {
     "domain": "Staging",
@@ -2359,7 +2389,8 @@
         ]
       }
     ],
-    "rowCount": 40400
+    "rowCount": 40400,
+    "aiSuggestion": "Cette table contient des informations sur les commandes, notamment une identifiant unique, les clés des clients, les dates de réception et les statuts de traitement des commandes."
   },
   "stg_order_items": {
     "domain": "Staging",
@@ -2460,7 +2491,8 @@
         ]
       }
     ],
-    "rowCount": 121331
+    "rowCount": 121331,
+    "aiSuggestion": "Cette table contient les détails de chaque article commandé dans une commande de commande, notamment la quantité et le prix de chaque article."
   },
   "stg_products": {
     "domain": "Staging",
@@ -2559,7 +2591,8 @@
         ]
       }
     ],
-    "rowCount": 2000
+    "rowCount": 2000,
+    "aiSuggestion": "Cette table contient des informations sur les produits, notamment son nom, sa catégorie et son prix."
   },
   "fct_sales": {
     "domain": "Dimensions & faits",
@@ -2874,7 +2907,8 @@
         ]
       }
     ],
-    "rowCount": 2457
+    "rowCount": 2457,
+    "aiSuggestion": "Cette table contient les détails de toutes les commandes passées entre les clients et l'entreprise, y compris les informations de paiement et les raisons de rejet."
   },
   "tbl_postgresql_dbt_dev_client_reconciliation": {
     "domain": "erp_migre",
@@ -2939,7 +2973,8 @@
         ]
       }
     ],
-    "rowCount": 138
+    "rowCount": 138,
+    "aiSuggestion": "Cette table stocke les informations de synchronisation entre le système ERP et le système CRM."
   },
   "tbl_postgresql_dbt_dev_dim_client": {
     "domain": "public_marts",
@@ -3021,7 +3056,8 @@
         ]
       }
     ],
-    "rowCount": 507
+    "rowCount": 507,
+    "aiSuggestion": "Cette table contient des informations sur les clients des magasins publics, avec des données identifiantiques, des codes, des libellés et des informations de contact."
   },
   "tbl_postgresql_dbt_dev_dim_centre_cout": {
     "domain": "public_marts",
@@ -3092,7 +3128,8 @@
         ]
       }
     ],
-    "rowCount": 16
+    "rowCount": 16,
+    "aiSuggestion": "Cette table contient des informations sur les centres de coût, notamment leur identifiant, leur code et leur libelle, ainsi que les informations sur leurs responsables et leurs parents."
   },
   "tbl_postgresql_dbt_dev_dim_produit": {
     "domain": "public_marts",
@@ -3152,7 +3189,8 @@
         ]
       }
     ],
-    "rowCount": 200
+    "rowCount": 200,
+    "aiSuggestion": "Cette table contient les informations de produits, notamment leur identifiant, code, libelle et appartenance à une famille de produits."
   },
   "tbl_postgresql_dbt_dev_dim_compte": {
     "domain": "public_marts",
@@ -3212,7 +3250,8 @@
         ]
       }
     ],
-    "rowCount": 40
+    "rowCount": 40,
+    "aiSuggestion": "Cette table contient les informations de compte, comme le code, le nom et la nature d'un compte dans un système."
   },
   "tbl_postgresql_dbt_dev_fct_budget": {
     "domain": "public_marts",
@@ -3294,7 +3333,8 @@
         ]
       }
     ],
-    "rowCount": 2232
+    "rowCount": 2232,
+    "aiSuggestion": "Cette table contient des informations de budget pour les différents centres de coût et comptes de l'entreprise, y compris la période de référence et le montant alloué."
   },
   "tbl_postgresql_dbt_dev_dim_date": {
     "domain": "public_marts",
@@ -3365,7 +3405,8 @@
         ]
       }
     ],
-    "rowCount": 1826
+    "rowCount": 1826,
+    "aiSuggestion": "Cette table contient les dates des différents trimestres d'une année pour un ensemble de données."
   },
   "tbl_postgresql_dbt_dev_dim_version_budget": {
     "domain": "public_marts",
@@ -3414,7 +3455,8 @@
         ]
       }
     ],
-    "rowCount": 2
+    "rowCount": 2,
+    "aiSuggestion": "Cette table contient les différentes versions des budgets, enregistrant leur identifiant, leur libellé et la date de validation."
   },
   "tbl_postgresql_dbt_dev_fct_forecast": {
     "domain": "public_marts",
@@ -3496,7 +3538,8 @@
         ]
       }
     ],
-    "rowCount": 1674
+    "rowCount": 1674,
+    "aiSuggestion": "Cette table contient les prévisions de chiffre d'affaires pour différentes périodes et comptes dans une entreprise, en incluant les informations de date et de montant prévu."
   },
   "tbl_postgresql_dbt_dev_fct_ventes_reel": {
     "domain": "public_marts",
@@ -3600,7 +3643,8 @@
         ]
       }
     ],
-    "rowCount": 6769
+    "rowCount": 6769,
+    "aiSuggestion": "Cette table contient des informations sur les ventes réelles de produits dans différents centres de prix."
   },
   "tbl_postgresql_dbt_dev_fct_allocation_couts": {
     "domain": "public_marts",
@@ -3660,7 +3704,8 @@
         ]
       }
     ],
-    "rowCount": 5
+    "rowCount": 5,
+    "aiSuggestion": "Cette table contient les coûts associés à chaque centre de coût, incluant les coûts propres et les coûts répartis, ainsi que les montants alloués à chaque coût."
   },
   "tbl_postgresql_dbt_dev_fct_ecarts_reel_budget": {
     "domain": "public_marts",
@@ -3753,7 +3798,8 @@
         ]
       }
     ],
-    "rowCount": 2316
+    "rowCount": 2316,
+    "aiSuggestion": "Cette table contient les différences entre les budgets réels et les budgets prévus pour chaque centre de coût."
   },
   "tbl_postgresql_dbt_dev_crm_dim_client": {
     "domain": "raw",
@@ -3807,7 +3853,8 @@
         ]
       }
     ],
-    "rowCount": 500
+    "rowCount": 500,
+    "aiSuggestion": "Une table contenant des informations sur les clients, avec des données stockées sous forme de texte JSON et une date de chargement."
   },
   "tbl_postgresql_dbt_dev_crm_dim_produit": {
     "domain": "raw",
@@ -3861,7 +3908,8 @@
         ]
       }
     ],
-    "rowCount": 200
+    "rowCount": 200,
+    "aiSuggestion": "Cette table contient les informations de produits dans une base de données de gestion commerciale, enregistrées sous forme de données JSONB et accompagnées d'une date et d'un identifiant unique."
   },
   "tbl_postgresql_dbt_dev_crm_fact_ventes_reel": {
     "domain": "raw",
@@ -3915,7 +3963,8 @@
         ]
       }
     ],
-    "rowCount": 4442
+    "rowCount": 4442,
+    "aiSuggestion": "Cette table contient les données des factures de ventes réelles, y compris une identification unique, une date de chargement des données et une représentation de données sous forme de JSON."
   },
   "tbl_postgresql_dbt_dev_logs_app_events": {
     "domain": "raw",
@@ -3969,7 +4018,8 @@
         ]
       }
     ],
-    "rowCount": 23841
+    "rowCount": 23841,
+    "aiSuggestion": "Cette table contient des enregistrements de événements appliqués avec des informations de date et de contenu détaillés, probablement liés aux interactions des utilisateurs avec une application."
   },
   "tbl_postgresql_dbt_dev_finance_dim_centre_cout": {
     "domain": "raw",
@@ -4023,7 +4073,8 @@
         ]
       }
     ],
-    "rowCount": 15
+    "rowCount": 15,
+    "aiSuggestion": "Cette table contient les données de coût d'une ou plusieurs centaines, inclus les informations de loading de chaque entrée."
   },
   "tbl_postgresql_dbt_dev_finance_dim_compte": {
     "domain": "raw",
@@ -4077,7 +4128,8 @@
         ]
       }
     ],
-    "rowCount": 40
+    "rowCount": 40,
+    "aiSuggestion": "Cette table contient les informations sur les comptes financiers, y compris une date de chargement précise et des données stockées sous forme de données JSON."
   },
   "tbl_postgresql_dbt_dev_finance_dim_version_budget": {
     "domain": "raw",
@@ -4131,7 +4183,8 @@
         ]
       }
     ],
-    "rowCount": 2
+    "rowCount": 2,
+    "aiSuggestion": "Cette table stocke des données de budget à jour avec une version spécifique, incluant une date de récupération, et contient les données sous forme de JSON."
   },
   "tbl_postgresql_dbt_dev_finance_fact_budget": {
     "domain": "raw",
@@ -4185,7 +4238,8 @@
         ]
       }
     ],
-    "rowCount": 2232
+    "rowCount": 2232,
+    "aiSuggestion": "Cette table contient des données de budget liées à des données financières chargées à des dates spécifiques."
   },
   "tbl_postgresql_dbt_dev_finance_fact_forecast": {
     "domain": "raw",
@@ -4239,7 +4293,8 @@
         ]
       }
     ],
-    "rowCount": 1674
+    "rowCount": 1674,
+    "aiSuggestion": "Cette table contient des prévisions financières stockées sous forme de données JSON."
   },
   "tbl_postgresql_dbt_dev_erp_legacy_vente_ligne_brute": {
     "domain": "raw",
@@ -4293,7 +4348,8 @@
         ]
       }
     ],
-    "rowCount": 2457
+    "rowCount": 2457,
+    "aiSuggestion": "Cette table contient les informations de chaque ligne de vente, stockées sous forme de données brutes."
   },
   "tbl_mysql_crm_dim_client": {
     "domain": "crm",
@@ -4369,7 +4425,8 @@
         ]
       }
     ],
-    "rowCount": 500
+    "rowCount": 500,
+    "aiSuggestion": "Cette table contient les informations de contact et de caractéristiques des clients, notamment leur identifiant, leur code, leur libellé et leurs codes SIRET."
   },
   "tbl_mysql_crm_dim_produit": {
     "domain": "crm",
@@ -4434,7 +4491,8 @@
         ]
       }
     ],
-    "rowCount": 200
+    "rowCount": 200,
+    "aiSuggestion": "Cette table contient les informations de produits dans une base de données de gestion de relations, notamment leur identification, leur nom et leur catégorie."
   },
   "tbl_mysql_crm_fact_ventes_reel": {
     "domain": "crm",
@@ -4543,7 +4601,8 @@
         ]
       }
     ],
-    "rowCount": 4442
+    "rowCount": 4442,
+    "aiSuggestion": "Cette table enregistre les informations de toutes les ventes réelles effectuées, y compris les détails de vente, les montants et les quantités."
   }
 };
   const REAL_GENERATED_AT = "2026-08-21T21:52:24.104112+00:00";
@@ -12629,6 +12688,17 @@
     desc.className = "node-desc";
     desc.textContent = node.description;
     head.append(badgeRow, name, desc);
+    if (node.aiSuggestion) {
+      const box = document.createElement("div");
+      box.className = "ai-suggestion";
+      const badge = document.createElement("span");
+      badge.className = "ai-suggestion-badge";
+      badge.textContent = "🤖 Suggestion IA — non vérifiée";
+      const p = document.createElement("p");
+      p.textContent = node.aiSuggestion;
+      box.append(badge, p);
+      head.appendChild(box);
+    }
     root.appendChild(head);
 
     // Position dans le lignage (diagramme local : ce dont dépend le nœud, en haut ;

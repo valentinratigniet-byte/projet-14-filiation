@@ -213,17 +213,22 @@ raccourci technique.
 
 ### LLM
 
-- [ ] **Descriptions manquantes générées, jamais imposées** — beaucoup de
-      nœuds réels (introspectés depuis un système sans commentaires) portent
-      aujourd'hui `"Aucune description renseignée..."`. Un LLM (API Claude,
-      ou un Ollama local dédié à ce projet — pas `bv-ollama`) peut proposer
-      une description à partir du nom de table/colonne, du type, et du SQL
-      environnant. Affichée avec un badge explicite **"Suggestion IA, non
-      vérifiée"**, jamais écrite automatiquement dans `demoNodes`/le jeu
-      réel — un humain doit la relire et la valider avant qu'elle devienne
-      la description officielle (même doctrine que le reste de l'outil :
-      pas d'écriture live, une correction passe par une validation
-      explicite).
+- [x] **Descriptions manquantes générées, jamais imposées** — fait le
+      2026-08-22. `scripts/suggest_descriptions.py` interroge `bv-ollama`
+      (local, `llama3.2:3b`, autorisé par Valentin — voir le 17e-19e commit
+      pour la même autorisation côté bases) en HTTP simple (`urllib`
+      stdlib, aucune dépendance ajoutée) pour chaque nœud dont la
+      description est encore le texte générique
+      (`"Aucune description renseignée..."` / `"aucune documentation
+      associée"`). Le résultat est écrit dans un champ **séparé**
+      `aiSuggestion`, jamais dans `description` — affiché dans la fiche
+      avec un badge **"🤖 Suggestion IA — non vérifiée"** en encadré
+      pointillé, visuellement distinct du texte officiel. Idempotent (ne
+      retraite pas un nœud déjà suggéré sauf `--force`) et best-effort (un
+      nœud sur lequel Ollama échoue est simplement laissé de côté, le
+      script continue). Aucune écriture automatique de la doctrine
+      officielle — un humain reste seul juge de ce qui devient la vraie
+      description (dans dbt, dans un `COMMENT ON`...).
 - [ ] **Assistant "posez une question sur vos données"** — un champ de
       question en langage naturel au-dessus du graphe de lignage
       ("d'où vient ce chiffre ?", "qu'est-ce qui casse si je change X ?").
