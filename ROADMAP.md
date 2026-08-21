@@ -1,6 +1,6 @@
 # Feuille de route
 
-État au 2026-08-20 (11 commits). Trois chantiers identifiés pour la reprise,
+État au 2026-08-21 (13 commits). Trois chantiers identifiés pour la reprise,
 dans l'ordre conseillé : 1) durcir le raccordement aux bases existant,
 2) compléter les informations qu'on en extrait, 3) étendre le lignage
 jusqu'à la couche Power BI (nouveau sous-système, plus gros morceau).
@@ -37,11 +37,26 @@ régression sur Postgres.
       confirmés corrects sur MySQL dans la foulée.
       **Reste à faire** : SQL Server (`pyodbc`) — pas testé, aucune
       instance disponible localement pour le moment.
-- [ ] **Grosses bases** : `scan_database.py` scanne aujourd'hui *toutes*
-      les tables des schémas ciblés, sans limite. Sur une vraie ERP
-      (plusieurs centaines de tables), ce serait long et lourd. Ajouter un
-      `--tables` pour cibler une liste précise, ou un mode "aperçu rapide"
-      (les N tables les plus volumineuses) avant un scan complet.
+- [x] **Grosses bases** — fait le 2026-08-21. Deux options ajoutées à
+      `scan_database.py` : `--tables NOM [NOM ...]` pour cibler une liste
+      précise de tables, et `--top N` (aperçu rapide) qui fait d'abord un
+      `COUNT(*)` sur *toutes* les tables des schémas ciblés (sans
+      introspection de colonnes ni contrôles qualité, donc rapide) puis ne
+      scanne en détail que les N tables les plus volumineuses. Les deux
+      modes réutilisent le même chemin : un ensemble de tables retenues
+      filtre simplement la boucle de scan complet. Une clé étrangère vers
+      une table exclue du périmètre est abandonnée silencieusement (`deps`
+      vide), même comportement que pour une référence cross-schéma non
+      résolue déjà présente dans le code. Testé en direct contre la vraie
+      base ecommerce (schéma `raw`, 5 tables) : `--top 2` retient bien
+      `order_item` (121 331 lignes) et `orders` (40 400) avant `product` et
+      `customer` ; `--tables customer product` scanne exactement ces deux
+      tables.
+      **Reste à faire** : sur une base à plusieurs centaines de tables, le
+      `COUNT(*)` du mode `--top` reste lui-même un scan complet (une requête
+      par table) — passer aux statistiques du catalogue
+      (`pg_class.reltuples` sur Postgres) si ça devient trop lent en
+      pratique (marqué `ponytail:` dans le code).
 - [ ] **Timeouts / retries réseau** — aucun timeout de connexion
       configurable actuellement ; une base distante lente ferait planter le
       scan sans message clair. Ajouter `connect_args` par dialecte + un

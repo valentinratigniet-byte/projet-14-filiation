@@ -76,7 +76,25 @@ def check_unique(engine, conn, schema: str, table: str, column: str, total: int)
     return {"label": "Unicité", "status": "ok" if n == total else "fail", "note": None if n == total else f"{total - n} doublon(s)"}
 
 
-def scan(url: str, schemas: list[str] | None) -> dict[str, Any]:
+def quick_row_counts(engine, insp, schemas: list[str]) -> list[tuple[int, str, str]]:
+    """COUNT(*) par table, sans introspection de colonnes ni contrôles qualité —
+    pour classer les tables avant un scan complet (mode --top)."""
+    # ponytail: COUNT(*) sur TOUTES les tables reste un scan complet en soi sur une base
+    # à des centaines de tables ; passer aux statistiques du catalogue (pg_class.reltuples
+    # sur Postgres, information_schema.tables sur MySQL) si ça devient trop lent en pratique.
+    rows = []
+    with engine.connect() as conn:
+        for schema in schemas:
+            for table in insp.get_table_names(schema=schema):
+                try:
+                    n = conn.execute(text(f"select count(*) from {quoted_table(engine, schema, table)}")).scalar() or 0
+                except Exception:
+                    n = 0
+                rows.append((n, schema, table))
+    return rows
+
+
+def scan(url: str, schemas: list[str] | None, tables: list[str] | None = None) -> dict[str, Any]:
     engine = create_engine(url)
     insp = inspect(engine)
     schemas = schemas or default_schemas(engine, insp)
@@ -84,15 +102,15 @@ def scan(url: str, schemas: list[str] | None) -> dict[str, Any]:
     id_by_table: dict[tuple[str, str], str] = {}
     for schema in schemas:
         for table in insp.get_table_names(schema=schema):
+            if tables is not None and table not in tables:
+                continue
             id_by_table[(schema, table)] = node_id(table)
 
     system_label = f"{engine.url.get_backend_name()} — {engine.url.database}"
     nodes: dict[str, Any] = {}
 
     with engine.connect() as conn:
-        for schema in schemas:
-            for table in insp.get_table_names(schema=schema):
-                nid = id_by_table[(schema, table)]
+        for (schema, table), nid in id_by_table.items():
                 cols = insp.get_columns(table, schema=schema)
                 pk_cols = set((insp.get_pk_constraint(table, schema=schema) or {}).get("constrained_columns") or [])
                 fks = insp.get_foreign_keys(table, schema=schema) or []
@@ -158,13 +176,27 @@ def main() -> None:
     parser.add_argument("--html", type=Path, default=DEFAULT_HTML, help="index.html à mettre à jour")
     parser.add_argument("--snapshots", type=Path, default=SNAPSHOTS_DIR, help="Dossier des instantanés historisés")
     parser.add_argument("--label", default=None, help="Nom lisible pour ce système (ex. \"ERP client X\")")
+    parser.add_argument("--tables", nargs="*", default=None, help="Limiter le scan à ces tables précises (nom sans schéma)")
+    parser.add_argument("--top", type=int, default=None, help="Aperçu rapide : ne scanner en détail que les N tables les plus volumineuses (COUNT(*) sur toutes les tables d'abord)")
     args = parser.parse_args()
 
     url = args.url or os.environ.get("DATABASE_URL")
     if not url:
         raise SystemExit("Fournir --url ou définir $DATABASE_URL avant de lancer ce script.")
 
-    nodes = scan(url, args.schemas)
+    tables = args.tables
+    schemas = args.schemas
+    if args.top:
+        engine = create_engine(url)
+        insp = inspect(engine)
+        schemas = schemas or default_schemas(engine, insp)
+        ranked = sorted(quick_row_counts(engine, insp, schemas), reverse=True)
+        tables = [table for _, _, table in ranked[: args.top]]
+        print(f"Aperçu rapide — {args.top} table(s) la/les plus volumineuse(s) retenue(s) sur {len(ranked)} :")
+        for n, schema, table in ranked[: args.top]:
+            print(f"  {n:>10}  {schema}.{table}")
+
+    nodes = scan(url, schemas, tables)
     generated_at = datetime.now(timezone.utc).isoformat()
 
     splice(args.html, "AUTO-GENERATED", to_js_const("realNodes", nodes) + "\n" + to_js_const("REAL_GENERATED_AT", generated_at))
