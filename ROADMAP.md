@@ -1,9 +1,12 @@
 # Feuille de route
 
-État au 2026-08-21 (13 commits). Trois chantiers identifiés pour la reprise,
-dans l'ordre conseillé : 1) durcir le raccordement aux bases existant,
-2) compléter les informations qu'on en extrait, 3) étendre le lignage
-jusqu'à la couche Power BI (nouveau sous-système, plus gros morceau).
+État au 2026-08-21 (15 commits). Quatre chantiers identifiés pour la
+reprise, dans l'ordre conseillé : 1) durcir le raccordement aux bases
+existant, 2) compléter les informations qu'on en extrait, 3) étendre le
+lignage jusqu'à la couche Power BI (nouveau sous-système, plus gros
+morceau), 4) connecter l'outil au reste de l'écosystème réel — LLM,
+orchestrateur de pipelines, bases multiples (le plus exploratoire, à ne
+démarrer qu'après avoir statué sur la frontière avec le projet partagé).
 
 ## 🔌 1. Raccordement aux bases de données
 
@@ -170,6 +173,93 @@ détecter dans l'outil :**
       que créer une 5ᵉ vue séparée — le point fort de l'outil est justement
       que tout se navigue au même endroit.
 
+## 🔗 4. Connexion à l'écosystème réel (LLM, pipelines, bases multiples)
+
+Les trois premiers chantiers durcissent l'outil sur ce qu'il sait déjà faire
+(une base, un projet dbt, un modèle Power BI). Celui-ci le connecte à ce qui
+tourne réellement autour — remplacer par du vrai ce qui est aujourd'hui
+fictif ou isolé, sans jamais sortir de la doctrine déjà actée : lecture
+seule, jamais d'écriture automatique, une suggestion reste une suggestion
+tant qu'un humain ne l'a pas validée. Voir
+[[governance-read-only-preference]].
+
+**⚠️ Frontière à respecter avant de commencer** : ce poste fait tourner des
+conteneurs qui appartiennent au [[projet-baptiste-valentin]] (`bv-ollama`,
+`bv-n8n`, `bv-mysql-crm`, `bv-postgres-dbtdev`, `bv-mongo-logs`) — un projet
+binôme avec Baptiste, pas un bac à sable pour ce projet-ci. Ne pas les
+réutiliser pour Filiation sans en parler à Valentin d'abord (accès
+concurrent, données qui ne sont pas seulement les siennes). Le réflexe déjà
+validé sur ce projet (voir 12ᵉ commit) est de préférer un conteneur jetable
+dédié — `docker run` isolé, nettoyé après le test — exactement comme pour le
+test MySQL de la ROADMAP chantier 1. Si un vrai besoin de connexion durable
+à `bv-*` se présente, c'est une décision à prendre avec Valentin, pas un
+raccourci technique.
+
+### LLM
+
+- [ ] **Descriptions manquantes générées, jamais imposées** — beaucoup de
+      nœuds réels (introspectés depuis un système sans commentaires) portent
+      aujourd'hui `"Aucune description renseignée..."`. Un LLM (API Claude,
+      ou un Ollama local dédié à ce projet — pas `bv-ollama`) peut proposer
+      une description à partir du nom de table/colonne, du type, et du SQL
+      environnant. Affichée avec un badge explicite **"Suggestion IA, non
+      vérifiée"**, jamais écrite automatiquement dans `demoNodes`/le jeu
+      réel — un humain doit la relire et la valider avant qu'elle devienne
+      la description officielle (même doctrine que le reste de l'outil :
+      pas d'écriture live, une correction passe par une validation
+      explicite).
+- [ ] **Assistant "posez une question sur vos données"** — un champ de
+      question en langage naturel au-dessus du graphe de lignage
+      ("d'où vient ce chiffre ?", "qu'est-ce qui casse si je change X ?").
+      Contexte envoyé au LLM : uniquement le sous-graphe pertinent (le nœud
+      ciblé + ses dépendances/dépendants via `deps`/`usedBy`, déjà calculés
+      pour l'analyse d'impact), pas tout `demoNodes`/`realNodes` — reste
+      lisible et bon marché en tokens. Répond en langage naturel, ne modifie
+      jamais rien.
+- [ ] **Explication des échecs de qualité** — sur un check `warn`/`fail`
+      (ex. "12 produits sans coût renseigné"), un résumé LLM en une phrase
+      de l'impact probable en aval (quels indicateurs métier sont affectés,
+      via la fermeture transitive `usedBy` déjà existante) — traduit un fait
+      technique en langage compréhensible par un rôle non technique (PDG,
+      RH), cohérent avec le filtrage par rôle déjà en place.
+
+### Pipelines (orchestration réelle)
+
+- [ ] Le domaine **Data** du jeu démo (fraîcheur pipelines, succès jobs,
+      score qualité) est aujourd'hui entièrement fictif — le remplacer par
+      du réel sur le même principe qu'`extract_filiation.py`/
+      `scan_database.py` : un nouveau script en lecture seule qui interroge
+      un vrai orchestrateur et régénère les nœuds correspondants.
+- [ ] Deux pistes déjà présentes sur ce poste : **Prefect** (déjà installé
+      dans le venv du [[portfolio-data]] Projet 10, a une API REST pour
+      lister flows/runs et leur statut) et **n8n** (API REST
+      `/rest/executions`). Prefect est plus simple à isoler pour un premier
+      test (2-3 flows factices dans un environnement Prefect dédié à ce
+      projet) sans toucher à l'instance partagée.
+- [ ] Une fois le pipeline réel branché, les nœuds `pipelines_a_jour`,
+      `jobs_reussis`, `score_qualite_donnees`... du domaine Data basculent
+      du jeu démo (fictif) vers le jeu réel — cohérent avec la façon dont
+      `dbt_ecommerce` alimente déjà le reste du jeu réel.
+
+### Bases de données multiples (fusion réelle)
+
+- [ ] La ROADMAP chantier 1 a déjà identifié la **fusion multi-sources**
+      comme un point en attente (`scan_database.py` écrase le rapport
+      précédent à chaque lancement plutôt que de fusionner). Ce chantier est
+      l'occasion de la construire pour de vrai plutôt que dans l'abstrait :
+      scanner successivement deux systèmes réellement différents du poste
+      (par ex. un Postgres jetable + un MySQL jetable, sur le modèle du test
+      MySQL déjà fait) et vérifier qu'ils apparaissent bien ensemble dans la
+      vue Systèmes, avec les collisions d'identifiants de nœuds gérées
+      (préfixer par système, déjà noté dans le point correspondant du
+      chantier 1).
+- [ ] Documenter clairement, une fois ce chantier commencé, la limite de
+      `scan_database.py` : basé sur SQLAlchemy, donc uniquement des bases
+      relationnelles (Postgres/MySQL/SQL Server/SQLite...) — pas MongoDB
+      (`bv-mongo-logs` en est un exemple présent sur ce poste, mais hors
+      périmètre de l'outil actuel, pas seulement hors périmètre "projet
+      partagé").
+
 ---
 
 **Pourquoi cet ordre** : le point 1 est le plus proche de ce qui tourne déjà
@@ -177,4 +267,8 @@ détecter dans l'outil :**
 dessus (mêmes fichiers, mêmes appels SQLAlchemy, ajout de champs). Le
 point 3 est un nouveau sous-système à part entière (dépend du MCP
 `powerbi-modeling` et d'un modèle Power BI ouvert) — à aborder une fois les
-deux premiers stabilisés, pas en premier.
+deux premiers stabilisés, pas en premier. Le point 4 vient en dernier
+volontairement : c'est le seul qui touche des ressources hors de ce projet
+(LLM, orchestrateur, bases multiples) et donc le seul qui demande de statuer
+d'abord sur la frontière avec le projet partagé — pas un chantier à lancer
+à la légère un soir.
