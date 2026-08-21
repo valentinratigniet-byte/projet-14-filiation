@@ -287,6 +287,29 @@
 
   .zoom-controls button:hover { color: var(--text); border-color: var(--accent); }
 
+  .graph-domain-filter { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+
+  .domain-chip {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.25rem 0.6rem;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    border-radius: 999px;
+    cursor: pointer;
+  }
+
+  .domain-chip:hover { border-color: var(--accent); }
+
+  .domain-chip.is-off {
+    color: var(--text-muted);
+    opacity: 0.55;
+    text-decoration: line-through;
+  }
+
   .graph-canvas {
     flex: 1;
     min-height: 320px;
@@ -846,6 +869,7 @@
           <button type="button" id="zoom-in" aria-label="Zoom avant">+</button>
         </div>
       </div>
+      <div class="graph-domain-filter" id="graph-domain-filter"></div>
       <div class="graph-canvas" id="graph-canvas"></div>
       <div class="graph-infobar" id="graph-infobar"></div>
     </div>
@@ -4629,6 +4653,25 @@
   let currentView = "fiche";
   let graphFocusId = null;
   let impactMode = false;
+  let hiddenGraphDomains = new Set();
+
+  function renderGraphDomainFilter(domains) {
+    const el = document.getElementById("graph-domain-filter");
+    if (!el) return;
+    el.innerHTML = "";
+    domains.forEach((d) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "domain-chip" + (hiddenGraphDomains.has(d) ? " is-off" : "");
+      btn.textContent = d;
+      btn.setAttribute("aria-pressed", String(!hiddenGraphDomains.has(d)));
+      btn.addEventListener("click", () => {
+        if (hiddenGraphDomains.has(d)) hiddenGraphDomains.delete(d); else hiddenGraphDomains.add(d);
+        renderGraphView();
+      });
+      el.appendChild(btn);
+    });
+  }
   let zoomScale = 1, panX = 0, panY = 0;
 
   applyRoleTabVisibility();
@@ -4703,14 +4746,26 @@
     const canvas = document.getElementById("graph-canvas");
     canvas.innerHTML = "";
 
-    const layer = computeLayers(nodes);
+    const allDomains = [...new Set(Object.values(nodes).map((n) => n.domain))].sort();
+    renderGraphDomainFilter(allDomains);
+
+    const ds = {};
+    for (const id in nodes) if (!hiddenGraphDomains.has(nodes[id].domain)) ds[id] = nodes[id];
+
+    const infobar = document.getElementById("graph-infobar");
+    if (!Object.keys(ds).length) {
+      infobar.textContent = "Aucun élément visible — réactivez au moins un domaine ci-dessus.";
+      return;
+    }
+
+    const layer = computeLayers(ds);
     const maxLayer = Math.max(0, ...Object.values(layer));
     const columns = Array.from({ length: maxLayer + 1 }, () => []);
-    for (const id in nodes) columns[layer[id]].push(id);
-    orderColumns(columns, nodes);
+    for (const id in ds) columns[layer[id]].push(id);
+    orderColumns(columns, ds);
 
     const boxH = 34, rowGap = 16, colGap = 70, margin = 24;
-    const colWidths = columns.map((col) => (col.length ? Math.max(...col.map((id) => estimateBoxWidth(nodes[id].short))) : 80));
+    const colWidths = columns.map((col) => (col.length ? Math.max(...col.map((id) => estimateBoxWidth(ds[id].short))) : 80));
     const colX = [];
     { let x = margin; for (let c = 0; c < columns.length; c++) { colX.push(x); x += colWidths[c] + colGap; } }
     const colHeights = columns.map((col) => col.length * (boxH + rowGap) - rowGap);
@@ -4728,7 +4783,7 @@
 
     const svg = svgEl("svg", {
       viewBox: `0 0 ${svgW} ${svgH}`, role: "img",
-      "aria-label": "Vue d'ensemble du lignage : " + Object.keys(nodes).length + " éléments.",
+      "aria-label": "Vue d'ensemble du lignage : " + Object.keys(ds).length + " éléments.",
     });
     const defs = svgEl("defs", {});
     const marker = svgEl("marker", {
@@ -4742,8 +4797,8 @@
     const viewport = svgEl("g", { id: "graph-viewport" });
     svg.appendChild(viewport);
 
-    for (const id in nodes) {
-      for (const dep of nodes[id].deps || []) {
+    for (const id in ds) {
+      for (const dep of ds[id].deps || []) {
         const a = positions[dep], b = positions[id];
         if (!a || !b) continue;
         const line = svgEl("line", {
@@ -4760,8 +4815,8 @@
 
     for (const id in positions) {
       const pos = positions[id];
-      const type = nodes[id].type;
-      const g = svgEl("g", { class: "graph-node is-clickable", tabindex: "0", role: "button", "aria-label": nodes[id].name });
+      const type = ds[id].type;
+      const g = svgEl("g", { class: "graph-node is-clickable", tabindex: "0", role: "button", "aria-label": ds[id].name });
       g.dataset.id = id;
       const rect = svgEl("rect", {
         x: pos.x, y: pos.y, width: pos.w, height: pos.h, rx: 7, class: "lineage-rect",
@@ -4771,7 +4826,7 @@
         x: pos.x + pos.w / 2, y: pos.y + pos.h / 2 + 4, "text-anchor": "middle",
         style: `font-family: 'IBM Plex Mono', monospace; font-size: 11px; fill: var(--${type});`,
       });
-      text.textContent = nodes[id].short;
+      text.textContent = ds[id].short;
       g.append(rect, text);
       const go = () => {
         graphFocusId = graphFocusId === id && !impactMode ? null : id;
