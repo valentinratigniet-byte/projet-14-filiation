@@ -264,7 +264,7 @@
     font-weight: 600;
   }
 
-  #graphe-view { display: flex; flex-direction: column; gap: 0.9rem; height: calc(100vh - 9rem); }
+  #graphe-view:not([hidden]) { display: flex; flex-direction: column; gap: 0.9rem; height: calc(100vh - 9rem); }
 
   .graph-toolbar {
     display: flex;
@@ -1020,6 +1020,17 @@
 
 <script>
   const TYPE_LABEL = { metric: "Indicateur", derived: "Calcul intermédiaire", raw: "Donnée brute", "dax-measure": "Mesure DAX", "dax-column": "Colonne calculée DAX", pipeline: "Pipeline" };
+
+  // Mot utilisé dans "N table(s)" de la vue Systèmes — les cartes n'affichent
+  // pas toutes des tables (mesures Power BI, workflows/flows n8n/Prefect).
+  const COUNT_WORD = { raw: "table(s)", "dax-measure": "mesure(s)", "dax-column": "colonne(s) calculée(s)", pipeline: "pipeline(s)" };
+
+  // dax-measure et dax-column partagent une seule couleur (--dax) plutôt que
+  // deux variables CSS dédiées — utilisé partout où un type de nœud doit se
+  // résoudre vers le nom d'une variable --<colorType>/--<colorType>-soft.
+  function colorType(type) {
+    return type.startsWith("dax-") ? "dax" : type;
+  }
 
   const demoNodes = {
     // ---- Ventes ----
@@ -32891,7 +32902,7 @@
     }
 
     function drawBox(pos, isCenter, clickable) {
-      const type = nodes[pos.id].type;
+      const type = colorType(nodes[pos.id].type);
       const visible = canSeeNode(pos.id);
       clickable = clickable && visible;
       const g = svgEl("g", { class: "lineage-node" + (clickable ? " is-clickable" : "") });
@@ -33109,7 +33120,7 @@
 
     for (const id in positions) {
       const pos = positions[id];
-      const type = ds[id].type;
+      const type = colorType(ds[id].type);
       const g = svgEl("g", { class: "graph-node is-clickable", tabindex: "0", role: "button", "aria-label": ds[id].name });
       g.dataset.id = id;
       const rect = svgEl("rect", {
@@ -33439,7 +33450,7 @@
 
     ids.forEach((id) => {
       const pos = positions[id];
-      const type = nodes[id].type;
+      const type = colorType(nodes[id].type);
       const g = svgEl("g", { class: "lineage-node is-clickable", tabindex: "0", role: "button", "aria-label": nodes[id].name });
       const rect = svgEl("rect", {
         x: pos.x, y: pos.y, width: pos.w, height: pos.h, rx: 7, class: "lineage-rect",
@@ -33486,7 +33497,8 @@
 
       const totalRows = ids.reduce((sum, id) => sum + (typeof nodes[id].rowCount === "number" ? nodes[id].rowCount : 0), 0);
       const impacted = systemImpactCount(ids);
-      const metaParts = [ids.length + " table(s)"];
+      const countWord = COUNT_WORD[nodes[ids[0]].type] || "élément(s)";
+      const metaParts = [ids.length + " " + countWord];
       if (totalRows) metaParts.push(totalRows.toLocaleString("fr-FR") + " lignes au total");
       metaParts.push(impacted + " élément(s) impacté(s) en aval");
       const meta = document.createElement("p");
