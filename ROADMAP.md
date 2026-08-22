@@ -121,29 +121,44 @@ primaires/étrangères réelles, volumétrie, et calcule en direct deux
 contrôles (non-nullité, unicité sur clé simple). Plusieurs informations déjà
 disponibles via SQLAlchemy/le SGBD ne sont **pas encore** exploitées :
 
-- [ ] **Commentaires déclarés en base** (`COMMENT ON TABLE` /
-      `COMMENT ON COLUMN`) — beaucoup de DBA documentent directement en base
-      plutôt que dans un outil externe. SQLAlchemy les expose déjà :
-      `inspector.get_table_comment(table, schema)` et la clé `"comment"` de
-      chaque colonne renvoyée par `get_columns()` — actuellement ignorés
-      alors que la donnée est disponible sans requête SQL supplémentaire.
-- [ ] **Vues** — `insp.get_table_names()` ne renvoie *que* les tables ; les
-      vues (`insp.get_view_names()`) sont invisibles aujourd'hui. Une vraie
-      base métier a souvent des vues importantes (agrégats, sécurité par
-      vue). À ajouter en 2ᵉ passage, avec un badge "vue" distinct
-      (`get_pk_constraint`/`get_foreign_keys` ne s'appliquent pas à une vue
-      — dégrader proprement plutôt que planter).
-- [ ] **Contrainte déclarée vs observée** — `column["nullable"]` (déjà
-      renvoyé par `get_columns()`) n'est jamais lu ; seul un test live
-      (`check_not_null`) est calculé. Afficher les deux donne un vrai
-      signal : une colonne déclarée `NOT NULL` dont le test échoue signale
-      une incohérence ; une colonne nullable en théorie mais jamais nulle en
-      pratique est candidate à contraindre.
-- [ ] **Valeurs par défaut** — `column["default"]`, déjà disponible côté
-      SQLAlchemy, jamais affiché.
-- [ ] **Index** — `insp.get_indexes()`, utile pour un audit de performance
-      (colonnes indexées vs colonnes réellement filtrées/jointes).
-- [ ] **Contraintes CHECK** — `insp.get_check_constraints()`.
+- [x] **Commentaires déclarés en base** — fait le 2026-08-22.
+      `insp.get_table_comment(table, schema)` (via `safe()`, `NotImplementedError`
+      sur SQLite par exemple) devient la `description` du nœud quand il existe
+      (sinon le texte générique inchangé) ; la clé `"comment"` de chaque
+      colonne renvoyée par `get_columns()` s'affiche sous le nom de colonne.
+- [x] **Vues** — fait le 2026-08-22. `insp.get_view_names(schema)` fusionné
+      au même traitement que les tables (mêmes ids, mêmes déps), badge
+      "Vue" distinct dans l'en-tête de fiche. `get_pk_constraint`/
+      `get_foreign_keys`/`get_table_comment`/`get_indexes`/
+      `get_check_constraints` passent tous par `safe()` (dégradent en liste
+      vide/`None` plutôt que planter) — nécessaire pour les vues mais
+      généralisé à toute introspection non garantie par le dialecte.
+- [x] **Contrainte déclarée vs observée** — fait le 2026-08-22.
+      `column["nullable"]` affiché en badge "NOT NULL" à côté du nom de
+      colonne. Signal de cohérence ajouté au passage : si une colonne
+      déclarée `NOT NULL` échoue quand même au test live `check_not_null`,
+      une note "— pourtant déclarée NOT NULL en base" s'ajoute au contrôle
+      qualité existant (pas un nouveau test, un enrichissement du même).
+- [x] **Valeurs par défaut** — fait le 2026-08-22. `column["default"]`
+      affiché sous le nom de colonne (avec le commentaire, si présent).
+- [x] **Index** — fait le 2026-08-22. `insp.get_indexes()` (via `safe()`)
+      → section "Index & contraintes" sur la fiche (nom, colonnes,
+      unique/non-unique).
+- [x] **Contraintes CHECK** — fait le 2026-08-22. `insp.get_check_constraints()`
+      (via `safe()`) → même section, texte SQL brut de la contrainte.
+
+      **Vérifié** : DB SQLite jetable (`test_scan_chantier2.py`, stdlib
+      `sqlite3` + SQLAlchemy, aucun conteneur partagé touché) couvrant les 6
+      points en une fois — table + vue, colonne `NOT NULL` vs nullable,
+      valeur par défaut, contrainte CHECK, index nommé, dégradation propre
+      de `get_table_comment` (non supporté sur SQLite). Rendu HTML vérifié
+      en jsdom (badge "Vue", badge "NOT NULL", ligne commentaire/défaut,
+      sous-sections Index/CHECK, pas de section fantôme quand vide).
+      Re-testé contre la vraie base ecommerce (Docker relancé puis arrêté) :
+      aucune régression ; cette base n'a ni index/CHECK/commentaires/valeurs
+      par défaut déclarés sur `raw.customer`/`raw.product` (landing zone non
+      contrainte, cohérent avec ce qui avait déjà été constaté au chantier 1
+      "relations inférées" — pas de vraie contrainte FK non plus).
 - [ ] Plus loin, moins prioritaire : vues matérialisées, procédures
       stockées / triggers (logique métier parfois cachée là),
       partitionnement, character set / collation.

@@ -780,6 +780,20 @@
 
   .col-tests { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.4rem; }
 
+  .col-flag {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.1rem 0.4rem;
+    border-radius: 5px;
+    border: 1px dashed var(--border);
+    color: var(--text-muted);
+  }
+
+  .col-meta { margin: 0.25rem 0 0; font-size: 0.8rem; color: var(--text-muted); }
+  .col-meta code { font-family: "IBM Plex Mono", monospace; font-size: 0.75rem; }
+
   .col-upstream { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-top: 0.4rem; }
 
   .col-upstream-label {
@@ -11868,7 +11882,24 @@
       ctype.className = "col-type";
       ctype.textContent = col.type;
       head.append(cname, ctype);
+      if (col.nullable === false) {
+        const flag = document.createElement("span");
+        flag.className = "col-flag";
+        flag.textContent = "NOT NULL";
+        head.appendChild(flag);
+      }
       row.appendChild(head);
+      if (col.comment || col.default) {
+        const meta = document.createElement("p");
+        meta.className = "col-meta";
+        if (col.comment) meta.appendChild(document.createTextNode(col.comment));
+        if (col.comment && col.default) meta.appendChild(document.createTextNode(" · "));
+        if (col.default) {
+          meta.appendChild(document.createTextNode("défaut : "));
+          meta.appendChild(codeText(col.default));
+        }
+        row.appendChild(meta);
+      }
       if (col.tests && col.tests.length) {
         const testsRow = document.createElement("div");
         testsRow.className = "col-tests";
@@ -11902,6 +11933,46 @@
         row.appendChild(upRow);
       }
       wrap.appendChild(row);
+    }
+    return wrap;
+  }
+
+  function indexesChecksSection(node) {
+    const wrap = document.createElement("div");
+    if (node.indexes && node.indexes.length) {
+      const title = document.createElement("p");
+      title.className = "eyebrow";
+      title.textContent = "Index";
+      const list = document.createElement("ul");
+      list.className = "derive-list";
+      node.indexes.forEach((idx) => {
+        const li = document.createElement("li");
+        li.className = "derive-row";
+        const mark = document.createElement("span");
+        mark.className = "derive-mark";
+        mark.textContent = idx.unique ? "⚿" : "·";
+        li.append(mark, codeText((idx.name || "(sans nom)") + " (" + idx.columns.join(", ") + ")" + (idx.unique ? " — unique" : "")));
+        list.appendChild(li);
+      });
+      wrap.append(title, list);
+    }
+    if (node.checks && node.checks.length) {
+      const title = document.createElement("p");
+      title.className = "eyebrow";
+      title.style.marginTop = node.indexes && node.indexes.length ? "0.9rem" : "0";
+      title.textContent = "Contraintes CHECK";
+      const list = document.createElement("ul");
+      list.className = "derive-list";
+      node.checks.forEach((c) => {
+        const li = document.createElement("li");
+        li.className = "derive-row";
+        const mark = document.createElement("span");
+        mark.className = "derive-mark";
+        mark.textContent = "✓";
+        li.append(mark, codeText((c.name ? c.name + " — " : "") + c.sql));
+        list.appendChild(li);
+      });
+      wrap.append(title, list);
     }
     return wrap;
   }
@@ -12868,6 +12939,12 @@
     domainBadge.className = "badge domain";
     domainBadge.textContent = node.domain;
     badgeRow.append(typeBadge, domainBadge);
+    if (node.isView) {
+      const viewBadge = document.createElement("span");
+      viewBadge.className = "badge domain";
+      viewBadge.textContent = "Vue";
+      badgeRow.appendChild(viewBadge);
+    }
     for (const tag of node.tags || []) {
       const t = document.createElement("span");
       t.className = "tag-pill";
@@ -12966,6 +13043,9 @@
     // Colonnes (projet réel : structure de la table telle qu'introspectée)
     if (node.columns && node.columns.length && ROLES[currentRole].sections.columns) {
       root.appendChild(section("Colonnes", columnsSection(node.columns, id)));
+      if ((node.indexes && node.indexes.length) || (node.checks && node.checks.length)) {
+        root.appendChild(section("Index & contraintes", indexesChecksSection(node)));
+      }
     }
 
     // Détails techniques (repliés) : SQL + valeurs observées

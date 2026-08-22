@@ -1,10 +1,15 @@
 """La "valise de détection" : scanne une base de données quelconque
 (Postgres, MySQL, SQLite, SQL Server...) via SQLAlchemy et produit un jeu de
 données Filiation — sans dépendre d'un projet dbt. Utile pour auditer un
-système inconnu : tables, colonnes, volumétrie réelle, relations (FK réelles
-si déclarées, sinon inférées par convention de nommage comme
-extract_filiation.py), et des contrôles de qualité basiques calculés en
-direct (valeurs non nulles, unicité des clés).
+système inconnu : tables ET vues, colonnes (type, nullable déclaré, valeur
+par défaut, commentaire déclaré en base), volumétrie réelle, relations (FK
+réelles si déclarées, sinon inférées par convention de nommage comme
+extract_filiation.py), index, contraintes CHECK, et des contrôles de qualité
+calculés en direct (valeurs non nulles — avec signalement d'incohérence si
+une colonne déclarée NOT NULL contient pourtant des valeurs nulles —,
+unicité des clés). Chaque introspection non supportée par un dialecte/objet
+donné (ex. commentaires sur SQLite, PK/FK sur une vue) dégrade proprement au
+lieu de faire planter le scan.
 
 Usage :
     export DATABASE_URL="postgresql://user:pass@host:port/db"   # jamais en argument (historique shell)
@@ -155,6 +160,16 @@ def connect_with_retry(engine, retries: int = 3, backoff: float = 1.5):
             time.sleep(wait)
 
 
+def safe(fn, default):
+    """Certaines introspections (commentaires, index, contraintes CHECK, PK/FK
+    sur une vue) ne sont pas supportées par tous les dialectes/objets — dégrader
+    proprement (valeur par défaut) plutôt que planter le scan en entier."""
+    try:
+        return fn()
+    except Exception:
+        return default
+
+
 def scan(url: str, schemas: list[str] | None, tables: list[str] | None = None, connect_timeout: int | None = None, retries: int = 3) -> dict[str, Any]:
     engine = make_engine(url, connect_timeout)
     connect_with_retry(engine, retries=retries)
@@ -165,18 +180,39 @@ def scan(url: str, schemas: list[str] | None, tables: list[str] | None = None, c
     system_slug = slugify(system_label)
 
     id_by_table: dict[tuple[str, str], str] = {}
+    is_view: dict[tuple[str, str], bool] = {}
     for schema in schemas:
         for table in insp.get_table_names(schema=schema):
             if tables is not None and table not in tables:
                 continue
             id_by_table[(schema, table)] = node_id(system_slug, table)
+            is_view[(schema, table)] = False
+        # Vues : mêmes id/déps qu'une table, mais get_pk_constraint/get_foreign_keys
+        # n'ont pas de sens dessus — dégradées via safe() plus bas plutôt qu'exclues.
+        for view in safe(lambda s=schema: insp.get_view_names(schema=s), []):
+            if tables is not None and view not in tables:
+                continue
+            id_by_table[(schema, view)] = node_id(system_slug, view)
+            is_view[(schema, view)] = True
     nodes: dict[str, Any] = {}
 
     with engine.connect() as conn:
         for (schema, table), nid in id_by_table.items():
+                view = is_view[(schema, table)]
                 cols = insp.get_columns(table, schema=schema)
-                pk_cols = set((insp.get_pk_constraint(table, schema=schema) or {}).get("constrained_columns") or [])
-                fks = insp.get_foreign_keys(table, schema=schema) or []
+                pk_cols = set(safe(lambda: (insp.get_pk_constraint(table, schema=schema) or {}).get("constrained_columns") or [], []))
+                fks = safe(lambda: insp.get_foreign_keys(table, schema=schema) or [], [])
+                table_comment = safe(lambda: (insp.get_table_comment(table, schema=schema) or {}).get("text"), None)
+                indexes = [
+                    {"name": idx.get("name"), "columns": idx["column_names"], "unique": bool(idx.get("unique"))}
+                    for idx in safe(lambda: insp.get_indexes(table, schema=schema) or [], [])
+                    if idx.get("column_names")
+                ]
+                checks = [
+                    {"name": c.get("name"), "sql": str(c["sqltext"])}
+                    for c in safe(lambda: insp.get_check_constraints(table, schema=schema) or [], [])
+                    if c.get("sqltext") is not None
+                ]
 
                 deps, fk_by_col = [], {}
                 for fk in fks:
@@ -199,6 +235,10 @@ def scan(url: str, schemas: list[str] | None, tables: list[str] | None = None, c
                     if total is not None:
                         nn = check_not_null(engine, conn, schema, table, c["name"])
                         if nn:
+                            # Signal de cohérence : une colonne déclarée NOT NULL dont le
+                            # test échoue est une incohérence entre le schéma et les données.
+                            if not c.get("nullable", True) and nn["status"] != "ok":
+                                nn["note"] = (nn.get("note") or "") + " — pourtant déclarée NOT NULL en base"
                             tests.append(nn)
                         # Unicité testée colonne par colonne uniquement pour une clé simple
                         # (une clé composite n'implique l'unicité d'aucune colonne seule).
@@ -206,29 +246,47 @@ def scan(url: str, schemas: list[str] | None, tables: list[str] | None = None, c
                             uq = check_unique(engine, conn, schema, table, c["name"], total)
                             if uq:
                                 tests.append(uq)
-                    entry = {"name": c["name"], "type": str(c["type"]), "tests": tests}
+                    entry = {"name": c["name"], "type": str(c["type"]), "nullable": bool(c.get("nullable", True)), "tests": tests}
+                    if c.get("comment"):
+                        entry["comment"] = c["comment"]
+                    if c.get("default") is not None:
+                        entry["default"] = str(c["default"])
                     if c["name"] in fk_by_col:
                         entry["upstream"] = fk_by_col[c["name"]]
                     columns.append(entry)
+
+                relations_txt = "réelles (clés étrangères déclarées)." if fks else "aucune contrainte déclarée ; complétées ci-dessous par une heuristique de nommage."
+                if table_comment:
+                    description = f"{table_comment} Relations : {relations_txt}"
+                else:
+                    kind_word = "Vue" if view else "Table"
+                    description = f"{kind_word} détectée automatiquement ({schema}.{table}) — aucune documentation associée. Relations : {relations_txt}"
 
                 node = {
                     "domain": schema,
                     "type": "raw",
                     "name": table,
                     "short": table,
-                    "description": f"Table détectée automatiquement ({schema}.{table}) — aucune documentation associée. Relations : {'réelles (clés étrangères déclarées).' if fks else 'aucune contrainte déclarée ; complétées ci-dessous par une heuristique de nommage.'}",
+                    "description": description,
                     "deps": sorted(set(deps)),
                     "source": {"system": system_label, "table": f"{schema}.{table}"},
                     "queryHint": f"select * from {quoted_table(engine, schema, table)} limit 20;",
                     "columns": columns,
                 }
+                if view:
+                    node["isView"] = True
                 if total is not None:
                     node["rowCount"] = total
+                if indexes:
+                    node["indexes"] = indexes
+                if checks:
+                    node["checks"] = checks
                 nodes[nid] = node
 
     # Complète, table par table sans contrainte réelle, une heuristique de nommage
     # (xxx_id -> table xxx/xxxs) — utilisée par la vue Systèmes (mini schéma relationnel).
     infer_fk_guesses(nodes)
+    engine.dispose()
     return nodes
 
 
@@ -308,6 +366,7 @@ def main() -> None:
         print(f"Aperçu rapide — {args.top} table(s) la/les plus volumineuse(s) retenue(s) sur {len(ranked)} :")
         for n, schema, table in ranked[: args.top]:
             print(f"  {n:>10}  {schema}.{table}")
+        engine.dispose()
 
     nodes = scan(url, schemas, tables, connect_timeout=args.connect_timeout, retries=args.retries)
     scanned_count = len(nodes)
