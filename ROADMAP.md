@@ -1,17 +1,18 @@
 # Feuille de route
 
-État au 2026-08-22 (27 commits). Quatre chantiers identifiés à l'origine :
+État au 2026-08-22 (29 commits). Quatre chantiers identifiés à l'origine :
 1) durcir le raccordement aux bases, 2) compléter les informations qu'on en
 extrait, 3) étendre le lignage jusqu'à la couche Power BI, 4) connecter
 l'outil au reste de l'écosystème réel (LLM, orchestrateur de pipelines,
-bases multiples). **Les quatre sont maintenant substantiellement faits**,
-y compris SQL Server, les mesures Power BI dupliquées et les pipelines n8n
-réels (tous fermés le 2026-08-22) — il ne reste que des points annexes
-explicitement marqués `[ ]` ci-dessous (exécutions/statuts n8n live,
-orchestrateur Prefect pour le domaine Data du jeu démo, quelques
-introspections base moins prioritaires, portail hébergé multi-ERP
-délibérément écarté). Détail par chantier ci-dessous, gardé pour la trace de
-ce qui a été fait et pourquoi.
+bases multiples). **Les quatre sont maintenant bouclés** : SQL Server, les
+mesures Power BI dupliquées, les pipelines n8n réels et l'orchestration
+Prefect réelle ont tous été fermés le 2026-08-22. Ne restent que 3 points
+explicitement écartés par choix, pas des oublis : le domaine Data du jeu
+**démo** reste fictif (vitrine pédagogique volontairement indépendante du
+jeu réel), quelques introspections base moins prioritaires (vues
+matérialisées/triggers/partitionnement), et le portail hébergé multi-ERP
+(chantier à part, autre modèle de risque). Détail par chantier ci-dessous,
+gardé pour la trace de ce qui a été fait et pourquoi.
 
 ## 🔌 1. Raccordement aux bases de données
 

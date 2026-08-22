@@ -37,8 +37,9 @@
    produite ici, cause et correctif dans le commit
    `fix: page blanche depuis l'ajout des rôles (erreur JS au chargement)`).
 4. **Ce qui reste à faire** : [ROADMAP.md](ROADMAP.md) — les 4 chantiers
-   sont substantiellement bouclés, il ne reste que des points annexes
-   (exécutions/statuts n8n live, vues matérialisées/triggers côté bases...).
+   sont bouclés ; 3 points restent délibérément écartés, pas oubliés
+   (domaine Data du jeu démo, quelques introspections base moins
+   prioritaires, portail hébergé multi-ERP).
 
 ## 🧬 Ce que fait le projet
 
@@ -185,7 +186,7 @@ qui peut agir — pas si l'action est sûre.
 ```
 projet-14-filiation/
 ├── README.md
-├── ROADMAP.md                     ← historique des 4 chantiers (tous substantiellement bouclés) et ce qui reste
+├── ROADMAP.md                     ← historique des 4 chantiers (tous bouclés) et les 3 points restants (délibérément écartés)
 ├── index.html                    ← l'outil, page unique auto-suffisante
 ├── requirements.txt               ← sqlglot, sqlalchemy (optionnels selon le script utilisé)
 ├── snapshots/                     ← historique d'extractions (pour la vue Dérive)
