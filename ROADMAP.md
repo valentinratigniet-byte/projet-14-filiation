@@ -457,22 +457,47 @@ encore aucun workflow ni exécution réelle** à ce moment-là.
       l'API authentifiée, toujours bloquée) — cohérent avec le principe déjà
       acté pour Power BI/dbt : Filiation documente la *structure* réelle, pas
       un flux temps réel.
+- [x] **Fait le 2026-08-22 — Prefect, la piste sans blocage d'authentification.**
+      Deux pistes étaient identifiées : Prefect (déjà installé dans le venv
+      de `projet-10-pipeline-elt`, pas d'authentification par mot de passe
+      en usage local) et n8n (authentification requise, voir ci-dessus).
+      Nouveau script `scripts/extract_prefect.py` : **se connecte en direct**
+      au client Prefect local (`get_client()`, profil "ephemeral" — une base
+      SQLite locale dans `~/.prefect/`, pas de serveur à démarrer), lecture
+      seule (`read_flows`/`read_flow_runs`/`read_task_runs`). Nécessite le
+      paquet `prefect`, absent du python système : s'exécute avec le venv de
+      `projet-10-pipeline-elt`
+      (`../projet-10-pipeline-elt/.venv/Scripts/python.exe
+      scripts/extract_prefect.py`), pas avec l'environnement des autres
+      scripts de ce projet — différence documentée dans le docstring du
+      script et dans le README plutôt que masquée. Un nœud `type: "pipeline"`
+      par flow (même type que les workflows n8n — Prefect est aussi un
+      orchestrateur, un badge séparé n'aurait rien apporté ; `TYPE_LABEL`
+      généralisé de "Pipeline (n8n)" à "Pipeline" au passage, le badge
+      domaine + la carte Systèmes disent déjà quel outil), avec les étapes
+      de sa dernière exécution (`pipelineSteps`, réutilise tel quel le rendu
+      construit pour n8n) et un contrôle de **fraîcheur réel** — la dernière
+      exécution date de plus de 7 jours → `warn` ; un statut différent de
+      `Completed` → `fail`, quelle que soit la fraîcheur.
+      **Découverte en explorant** : `~/.prefect/prefect.db` contenait déjà
+      l'historique de vraies exécutions passées — 2 flows réels
+      (`elt-ecommerce` du Projet 10, `entrepot-etl` du Projet 04, tous deux
+      `extract → dbt run → dbt test`), 3 exécutions, toutes `Completed` mais
+      **datant de 10-11 jours** → contrôle de fraîcheur `warn` sur les deux,
+      signal authentique (le pipeline n'a simplement pas retourné depuis un
+      moment), pas un cas de test fabriqué. Logique de fraîcheur/statut
+      extraite dans une fonction pure `build_flow_node()` testée sans
+      connexion Prefect (`test_extract_prefect.py` — 4 cas : récent+ok,
+      ancien+ok→warn, récent+échec→fail regardless de la fraîcheur,
+      run sans horodatage→pas de plantage). Fusionné dans `index.html`
+      (80 nœuds réels). Carte "Prefect — local" dans la vue Systèmes.
+      **n8n reste la seule piste bloquée** (authentification), Prefect
+      comble donc l'essentiel du besoin d'orchestration réelle.
 - [ ] Le domaine **Data** du jeu démo (fraîcheur pipelines, succès jobs,
       score qualité) reste entièrement fictif — pourrait être remplacé par
-      du réel sur le même principe (nœuds `pipeline` du jeu réel), pas fait
-      pour l'instant : le jeu démo sert de vitrine pédagogique volontairement
-      indépendante du jeu réel.
-- [ ] Deux pistes déjà présentes sur ce poste : **Prefect** (déjà installé
-      dans le venv du [[portfolio-data]] Projet 10, a une API REST pour
-      lister flows/runs et leur statut, pas d'auth par mot de passe) et
-      **n8n** (API REST, mais authentification requise — voir ci-dessus).
-      Prefect est plus simple à isoler pour un premier test (2-3 flows
-      factices dans un environnement Prefect dédié à ce projet) sans
-      toucher à l'instance partagée ni au problème d'authentification.
-- [ ] Une fois le pipeline réel branché, les nœuds `pipelines_a_jour`,
-      `jobs_reussis`, `score_qualite_donnees`... du domaine Data basculent
-      du jeu démo (fictif) vers le jeu réel — cohérent avec la façon dont
-      `dbt_ecommerce` alimente déjà le reste du jeu réel.
+      du réel sur le même principe (nœuds `pipeline` du jeu réel, maintenant
+      alimentés par Prefect), pas fait pour l'instant : le jeu démo sert de
+      vitrine pédagogique volontairement indépendante du jeu réel.
 
 ### Bases de données multiples (fusion réelle)
 

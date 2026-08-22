@@ -17,7 +17,7 @@
 [Lancer / régénérer](#-lancer--régénérer) ·
 [Valise de détection](#-valise-de-détection--auditer-une-base-sans-projet-dbt) ·
 [Power BI](#-power-bi--mesures-et-colonnes-calculées-dax) ·
-[Pipelines n8n](#-pipelines-n8n) ·
+[Pipelines n8n & Prefect](#-pipelines-n8n--prefect) ·
 [Limites assumées](#️-limites-assumées) ·
 [Feuille de route →](ROADMAP.md)
 
@@ -57,8 +57,9 @@ au choix dans la barre latérale :
   (`bv-postgres-dbtdev`, `bv-mysql-crm`), deux modèles Power BI réels
   ([Projet 09](../projet-09-dashboard-powerbi),
   [Projet 13](../projet-13-entrepot-central-bigquery)) et 5 workflows n8n
-  réels du même projet partagé — 78 nœuds au total, un système par carte
-  dans la vue Systèmes.
+  réels du même projet partagé, et 2 flows Prefect réels du portfolio lui-même
+  (Projets 04 et 10) — 80 nœuds au total, un système par carte dans la vue
+  Systèmes.
 
 ```mermaid
 flowchart LR
@@ -74,11 +75,15 @@ flowchart LR
     subgraph N8N["n8n (bv-dataplatform)"]
         WF["workflows/*.json<br/>déjà versionnés"]
     end
+    subgraph PREF["Prefect (local, Projets 04+10)"]
+        PC["client Prefect<br/>(flows/runs/tasks)"]
+    end
 
     MAN -->|"extract_filiation.py<br/>(+ sqlglot)"| JS["realNodes + SNAPSHOTS<br/>(JS, toujours fusionné)"]
     SQLA -->|scan_database.py| JS
     MCP -->|"extract_powerbi.py<br/>+ find_duplicate_powerbi_measures.py"| JS
     WF -->|extract_n8n.py| JS
+    PC -->|extract_prefect.py| JS
     JS -->|régénère| HTML["index.html<br/>(Filiation)"]
     JS -->|historise| SNAP[("snapshots/*.json")]
     SNAP -.->|vue Dérive| HTML
@@ -173,7 +178,7 @@ qui peut agir — pas si l'action est sûre.
 | Relations inférées | 4 | convention de nommage `xxx_id` → table `xxx`, sur les 5 tables `raw` (1 système) |
 | Mesures DAX (Power BI, Projets 09 + 13) | 34 | extraites de 2 modèles réels via MCP `powerbi-modeling` — 17 duplications de nom détectées entre les deux, 15 de formule |
 | Workflows n8n (pipeline) | 5 | lus depuis `projet-baptiste-valentin/n8n/workflows/*.json`, aucune connexion live |
-| Nœuds réels au total (jeu "Projet réel", fusionné) | 78 | dbt_ecommerce + bv-postgres-dbtdev + bv-mysql-crm + Power BI Projets 09+13 (34 mesures) + n8n (5 pipelines) |
+| Nœuds réels au total (jeu "Projet réel", fusionné) | 80 | dbt_ecommerce + bv-postgres-dbtdev + bv-mysql-crm + Power BI Projets 09+13 (34 mesures) + n8n (5 pipelines) + Prefect (2 flows) |
 
 ## 🗂️ Contenu
 
@@ -192,11 +197,13 @@ projet-14-filiation/
     ├── powerbi_export.example.json      ← schéma attendu par extract_powerbi.py --from-json
     ├── find_duplicate_powerbi_measures.py  ← annote les mesures dupliquées entre plusieurs .pbix
     ├── extract_n8n.py            ← ajoute des nœuds pipeline depuis des workflows n8n versionnés en JSON
+    ├── extract_prefect.py        ← ajoute des nœuds pipeline depuis le client Prefect local (connexion directe)
     ├── suggest_descriptions.py   ← descriptions suggérées par LLM local (bv-ollama), jamais imposées
     ├── test_scan_database.py     ← self-check scan_database.py (SQLite jetable)
     ├── test_extract_powerbi.py   ← self-check extract_powerbi.py (parsing DAX, sans modèle live)
     ├── test_find_duplicate_powerbi_measures.py  ← self-check détection de doublons (dumps synthétiques)
-    └── test_extract_n8n.py       ← self-check extract_n8n.py (workflows synthétiques)
+    ├── test_extract_n8n.py       ← self-check extract_n8n.py (workflows synthétiques)
+    └── test_extract_prefect.py   ← self-check extract_prefect.py (fraîcheur/statut, sans connexion live)
 ```
 
 ## 🚀 Lancer / régénérer
@@ -304,24 +311,40 @@ Testé en réel entre les Projets 09 et 13 (17 mesures chacun, même socle) :
 entre les deux rapports, exactement le genre de dérive silencieuse que ce
 script existe pour repérer.
 
-## 🔗 Pipelines n8n
+## 🔗 Pipelines n8n & Prefect
 
-Un nœud par workflow n8n réel (`type: "pipeline"`) : déclencheur, étapes
-dans l'ordre de l'export, lignage textuel best-effort vers les tables
-dbt/base déjà présentes (regex sur les requêtes Postgres des workflows), et
-un contrôle qualité tiré d'une vraie règle métier du projet partagé (accès
-Postgres limité à la couche Gold `public_marts`, jamais direct sur
-`raw`/`erp_migre`).
+Un nœud `type: "pipeline"` par workflow n8n ou flow Prefect réel — même type
+des deux côtés (deux orchestrateurs, un badge domaine + une carte Systèmes
+distincts suffisent à les distinguer) :
 
-**Contrairement à Power BI, aucun MCP nécessaire** : les workflows sont déjà
-versionnés en JSON (`projet-baptiste-valentin/n8n/workflows/*.json`),
-`scripts/extract_n8n.py` les lit directement — pas de connexion, pas
-d'identifiant, l'API n8n live reste inaccessible (authentification requise,
-bloquée par le classificateur de commandes) mais n'est pas nécessaire ici.
-
-```bash
-python scripts/extract_n8n.py   # --workflows-dir pour un autre dossier
-```
+- **n8n** : déclencheur, étapes dans l'ordre de l'export, lignage textuel
+  best-effort vers les tables dbt/base déjà présentes (regex sur les
+  requêtes Postgres des workflows), et un contrôle qualité tiré d'une vraie
+  règle métier du projet partagé (accès Postgres limité à la couche Gold
+  `public_marts`, jamais direct sur `raw`/`erp_migre`).
+  **Aucun MCP nécessaire** : les workflows sont déjà versionnés en JSON
+  (`projet-baptiste-valentin/n8n/workflows/*.json`), `scripts/extract_n8n.py`
+  les lit directement — pas de connexion, pas d'identifiant, l'API n8n live
+  reste inaccessible (authentification requise, bloquée par le
+  classificateur de commandes) mais n'est pas nécessaire ici.
+  ```bash
+  python scripts/extract_n8n.py   # --workflows-dir pour un autre dossier
+  ```
+- **Prefect** : étapes de la dernière exécution, et un contrôle de
+  **fraîcheur réel** (`warn` si la dernière exécution date de plus de 7
+  jours, `fail` si son statut n'est pas `Completed`). `scripts/
+  extract_prefect.py` **se connecte en direct** au client Prefect local
+  (lecture seule, `read_flows`/`read_flow_runs`/`read_task_runs`) — Prefect
+  n'exige pas d'authentification par mot de passe en usage local (profil
+  "ephemeral", base SQLite dans `~/.prefect/`), contrairement à n8n.
+  Nécessite le paquet `prefect`, absent du python système : s'exécute avec
+  le venv de [Projet 10](../projet-10-pipeline-elt), pas avec celui des
+  autres scripts de ce dossier.
+  ```bash
+  ../projet-10-pipeline-elt/.venv/Scripts/python.exe scripts/extract_prefect.py
+  ```
+  Extrait les 2 flows réels du portfolio (`elt-ecommerce` du Projet 10,
+  `entrepot-etl` du Projet 04) avec leur vrai historique d'exécution.
 
 ## ⚠️ Limites assumées
 
@@ -333,25 +356,29 @@ chargement.
 
 Chaque script d'extraction a son propre modèle de connexion — pas de
 prétention à l'uniformité là où la réalité diverge : `extract_filiation.py`
-lit un `target/` dbt compilé, `scan_database.py` se connecte en direct à
-n'importe quelle base SQLAlchemy, `extract_n8n.py` lit des workflows déjà
-versionnés en JSON, et `extract_powerbi.py` (seul cas) **ne se connecte pas
-lui-même** à un modèle Power BI — impossible en Python pur, il transforme un
-export JSON produit via le MCP `powerbi-modeling`, accessible uniquement
-depuis une session Claude Code avec le `.pbix` ouvert. Voir la section
-[Power BI](#-power-bi--mesures-et-colonnes-calculées-dax) plus bas. Le
-lignage `Table[Colonne]` fonctionne par correspondance de **nom** avec les
-nœuds déjà présents, pas par identité physique garantie — deux systèmes
-différents partageant un nom de table (ex. `dim_date`) sont ambigus, résolus
-arbitrairement (dernier trouvé), comme pour le lignage SQL clickable existant
-en cas de token dupliqué.
+lit un `target/` dbt compilé, `scan_database.py` et `extract_prefect.py` se
+connectent en direct (base SQLAlchemy quelconque ; client Prefect local,
+sans authentification par mot de passe), `extract_n8n.py` lit des workflows
+déjà versionnés en JSON (l'API n8n live existe mais reste derrière une
+authentification jamais résolue ici), et `extract_powerbi.py` (seul cas)
+**ne se connecte pas lui-même** à un modèle Power BI — impossible en Python
+pur, il transforme un export JSON produit via le MCP `powerbi-modeling`,
+accessible uniquement depuis une session Claude Code avec le `.pbix` ouvert.
+Voir la section [Power BI](#-power-bi--mesures-et-colonnes-calculées-dax)
+plus bas. Le lignage `Table[Colonne]` fonctionne par correspondance de
+**nom** avec les nœuds déjà présents, pas par identité physique garantie —
+deux systèmes différents partageant un nom de table (ex. `dim_date`) sont
+ambigus, résolus arbitrairement (dernier trouvé), comme pour le lignage SQL
+clickable existant en cas de token dupliqué.
 
 `scan_database.py` (SQLAlchemy) ne couvre que des bases **relationnelles**
 (Postgres/MySQL/SQL Server/SQLite...) — MongoDB (`bv-mongo-logs` sur ce
 poste, par exemple) est hors périmètre de l'outil actuel, pas seulement hors
 périmètre "projet partagé". `extract_n8n.py` lit la définition **statique**
-des workflows (étapes, requêtes), pas leurs exécutions ou statuts en
-direct — l'API n8n live existe mais reste derrière une authentification
-jamais résolue dans ce projet (voir [ROADMAP.md](ROADMAP.md), chantier 4).
+des workflows (étapes, requêtes), pas leurs exécutions ou statuts en direct
+(voir [ROADMAP.md](ROADMAP.md), chantier 4) — `extract_prefect.py`, lui,
+lit bien de vraies exécutions passées, mais seulement celles déjà
+enregistrées localement (pas de déclenchement, pas d'exécution en direct
+depuis l'outil).
 
 Reste à faire : voir [ROADMAP.md](ROADMAP.md).
