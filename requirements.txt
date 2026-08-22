@@ -1,6 +1,6 @@
 sqlglot>=25
 psycopg2-binary>=2.9   # optionnel : volumétrie réelle si la base dbt est joignable
-pyyaml>=6              # optionnel : lecture de profiles.yml pour la connexion
+pyyaml>=6               # lecture de profiles.yml (extract_filiation.py) et connections.yml (scan_database.py)
 sqlalchemy>=2          # scan_database.py — introspection générique (hors dbt)
 # Pilote spécifique à la base scannée par scan_database.py, au besoin :
 #   psycopg2-binary (déjà ci-dessus) pour Postgres, PyMySQL pour MySQL,

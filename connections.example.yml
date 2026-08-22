@@ -1,0 +1,11 @@
+# Copier en connections.yml (gitignoré) et adapter — chaque alias pointe vers
+# le NOM d'une variable d'environnement, jamais vers une URL/un secret en clair.
+#
+# Usage : export MON_ERP_URL="postgresql://..." puis
+#         python scripts/scan_database.py --conn mon_erp
+
+mon_erp:
+  env: MON_ERP_URL
+
+crm_test:
+  env: CRM_TEST_URL

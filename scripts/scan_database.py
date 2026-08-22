@@ -16,6 +16,14 @@ au lieu de tout remplacer (comportement par défaut). Les ids de nœuds sont
 préfixés par système pour éviter toute collision entre deux tables de même
 nom sur deux systèmes différents.
 
+Pour ne pas retaper une URL à chaque audit récurrent, déclarer un alias dans
+connections.yml (gitignored, voir connections.example.yml) :
+    mon_erp:
+      env: MON_ERP_URL
+puis lancer avec --conn mon_erp (résout vers $MON_ERP_URL, jamais de secret en
+clair dans le fichier). --connect-timeout/--retries bornent une base distante
+lente ou temporairement indisponible (sinon le scan pend indéfiniment).
+
 Toujours en lecture seule (SELECT / introspection uniquement). Les
 identifiants ne sont jamais écrits dans le HTML ni dans un instantané — seuls
 le nom de dialecte et le nom de base apparaissent (ex. "postgresql — ecommerce").
@@ -25,15 +33,29 @@ import argparse
 import json
 import os
 import re
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import yaml
 from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.exc import OperationalError
 
 from extract_filiation import SNAPSHOTS_DIR, build_snapshots_block, infer_fk_guesses, save_snapshot, splice, to_js_const
 
 DEFAULT_HTML = Path(__file__).resolve().parent.parent / "index.html"
+CONNECTIONS_FILE = Path(__file__).resolve().parent.parent / "connections.yml"
+
+# Clé de connect_args portant le timeout de connexion (secondes), par dialecte —
+# chaque pilote DBAPI a sa propre convention de nommage. SQLite est local, pas de
+# réseau à borner.
+CONNECT_TIMEOUT_ARG = {
+    "postgresql": "connect_timeout",
+    "mysql": "connect_timeout",
+    "mariadb": "connect_timeout",
+    "mssql": "timeout",
+}
 
 # Sur MySQL/MariaDB, "schema" == "database" au sens SQLAlchemy : get_schema_names()
 # liste alors TOUTES les bases de l'instance (y compris mysql/performance_schema/sys),
@@ -106,8 +128,36 @@ def quick_row_counts(engine, insp, schemas: list[str]) -> list[tuple[int, str, s
     return rows
 
 
-def scan(url: str, schemas: list[str] | None, tables: list[str] | None = None) -> dict[str, Any]:
-    engine = create_engine(url)
+def make_engine(url: str, connect_timeout: int | None):
+    connect_args = {}
+    if connect_timeout:
+        dialect = url.split("+", 1)[0].split(":", 1)[0]
+        arg = CONNECT_TIMEOUT_ARG.get(dialect)
+        if arg:
+            connect_args[arg] = connect_timeout
+    return create_engine(url, connect_args=connect_args)
+
+
+def connect_with_retry(engine, retries: int = 3, backoff: float = 1.5):
+    """Vérifie la connexion avant de lancer le scan, avec retry + backoff
+    exponentiel — une base distante lente/indisponible échouait sinon avec une
+    exception SQLAlchemy brute et sans nouvelle tentative."""
+    for attempt in range(1, retries + 1):
+        try:
+            conn = engine.connect()
+            conn.close()
+            return
+        except OperationalError as exc:
+            if attempt == retries:
+                raise SystemExit(f"Connexion impossible après {retries} tentative(s) : {exc.orig if exc.orig else exc}")
+            wait = backoff ** attempt
+            print(f"Connexion échouée (tentative {attempt}/{retries}), nouvel essai dans {wait:.1f}s…")
+            time.sleep(wait)
+
+
+def scan(url: str, schemas: list[str] | None, tables: list[str] | None = None, connect_timeout: int | None = None, retries: int = 3) -> dict[str, Any]:
+    engine = make_engine(url, connect_timeout)
+    connect_with_retry(engine, retries=retries)
     insp = inspect(engine)
     schemas = schemas or default_schemas(engine, insp)
 
@@ -201,9 +251,38 @@ def load_existing_real_nodes(html_path: Path) -> dict[str, Any]:
         return {}
 
 
+def load_connections(path: Path) -> dict[str, Any]:
+    """`connections.yml` (gitignored) : alias -> nom de la variable d'env à
+    lire, jamais un secret en clair. Absent = pas d'alias disponibles."""
+    if not path.exists():
+        return {}
+    return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+
+
+def resolve_url(args, connections: dict[str, Any]) -> str:
+    if args.url:
+        return args.url
+    if args.conn:
+        entry = connections.get(args.conn)
+        if not entry:
+            raise SystemExit(f"Alias \"{args.conn}\" absent de {CONNECTIONS_FILE} (voir connections.example.yml pour le format).")
+        env_var = entry.get("env") if isinstance(entry, dict) else None
+        if not env_var:
+            raise SystemExit(f"Alias \"{args.conn}\" mal formé dans {CONNECTIONS_FILE} (attendu : {{env: NOM_VARIABLE}}).")
+        url = os.environ.get(env_var)
+        if not url:
+            raise SystemExit(f"Alias \"{args.conn}\" pointe vers ${env_var}, mais cette variable d'environnement n'est pas définie.")
+        return url
+    url = os.environ.get("DATABASE_URL")
+    if not url:
+        raise SystemExit("Fournir --url, --conn <alias> (voir connections.yml) ou définir $DATABASE_URL avant de lancer ce script.")
+    return url
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--url", default=None, help="URL SQLAlchemy — préférer $DATABASE_URL pour ne pas exposer le mot de passe dans l'historique shell")
+    parser.add_argument("--url", default=None, help="URL SQLAlchemy — préférer $DATABASE_URL ou --conn pour ne pas exposer le mot de passe dans l'historique shell")
+    parser.add_argument("--conn", default=None, help="Alias défini dans connections.yml (résout vers la variable d'environnement associée)")
     parser.add_argument("--schemas", nargs="*", default=None, help="Schémas à scanner (défaut : tous, hors schémas système)")
     parser.add_argument("--html", type=Path, default=DEFAULT_HTML, help="index.html à mettre à jour")
     parser.add_argument("--snapshots", type=Path, default=SNAPSHOTS_DIR, help="Dossier des instantanés historisés")
@@ -211,16 +290,17 @@ def main() -> None:
     parser.add_argument("--tables", nargs="*", default=None, help="Limiter le scan à ces tables précises (nom sans schéma)")
     parser.add_argument("--top", type=int, default=None, help="Aperçu rapide : ne scanner en détail que les N tables les plus volumineuses (COUNT(*) sur toutes les tables d'abord)")
     parser.add_argument("--merge", action="store_true", help="Fusionner avec les systèmes déjà scannés (par défaut : un scan remplace tous les nœuds réels précédents)")
+    parser.add_argument("--connect-timeout", type=int, default=10, help="Timeout de connexion en secondes (0 pour désactiver, laisse le défaut du pilote)")
+    parser.add_argument("--retries", type=int, default=3, help="Nombre de tentatives de connexion avant d'abandonner")
     args = parser.parse_args()
 
-    url = args.url or os.environ.get("DATABASE_URL")
-    if not url:
-        raise SystemExit("Fournir --url ou définir $DATABASE_URL avant de lancer ce script.")
+    url = resolve_url(args, load_connections(CONNECTIONS_FILE))
 
     tables = args.tables
     schemas = args.schemas
     if args.top:
-        engine = create_engine(url)
+        engine = make_engine(url, args.connect_timeout)
+        connect_with_retry(engine, retries=args.retries)
         insp = inspect(engine)
         schemas = schemas or default_schemas(engine, insp)
         ranked = sorted(quick_row_counts(engine, insp, schemas), reverse=True)
@@ -229,7 +309,7 @@ def main() -> None:
         for n, schema, table in ranked[: args.top]:
             print(f"  {n:>10}  {schema}.{table}")
 
-    nodes = scan(url, schemas, tables)
+    nodes = scan(url, schemas, tables, connect_timeout=args.connect_timeout, retries=args.retries)
     scanned_count = len(nodes)
     if args.merge:
         merged = load_existing_real_nodes(args.html)

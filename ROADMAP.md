@@ -60,10 +60,21 @@ régression sur Postgres.
       par table) — passer aux statistiques du catalogue
       (`pg_class.reltuples` sur Postgres) si ça devient trop lent en
       pratique (marqué `ponytail:` dans le code).
-- [ ] **Timeouts / retries réseau** — aucun timeout de connexion
-      configurable actuellement ; une base distante lente ferait planter le
-      scan sans message clair. Ajouter `connect_args` par dialecte + un
-      retry avec backoff.
+- [x] **Timeouts / retries réseau** — fait le 2026-08-22. `make_engine()`
+      passe un `connect_args` propre à chaque dialecte (`connect_timeout` sur
+      Postgres/MySQL/MariaDB, `timeout` sur SQL Server/pyodbc — chaque pilote
+      DBAPI a sa propre convention de nom, aucune ne s'applique aux autres ;
+      SQLite est local, pas de réseau à borner). `connect_with_retry()`
+      teste la connexion avant de lancer le scan (3 tentatives par défaut,
+      backoff exponentiel `1.5^tentative`), lève un message clair après
+      épuisement plutôt que l'exception SQLAlchemy brute. Deux nouvelles
+      options : `--connect-timeout` (10s par défaut, 0 pour désactiver) et
+      `--retries`. Testé en direct contre un port fermé
+      (`postgresql+psycopg2://…@127.0.0.1:59999/nodb`, `--connect-timeout 2
+      --retries 2`) : échoue proprement en ~3,5s avec le message attendu au
+      lieu de pendre indéfiniment ; re-testé contre la vraie base ecommerce
+      (Docker relancé) pour confirmer l'absence de régression sur le chemin
+      normal.
 - [x] **Fusionner plusieurs sources dans un même rapport** — fait le
       2026-08-21. `scan_database.py --merge` relit le `realNodes` déjà
       présent dans `index.html`, y fusionne les nœuds fraîchement scannés
@@ -87,10 +98,16 @@ régression sur Postgres.
       réelle de la base ecommerce (2 tables) avec un Postgres jetable
       (1 table) — 3 nœuds, 2 cartes dans la vue Systèmes, navigation et
       changement de rôle sans erreur (jsdom).
-- [ ] **Connexions nommées** — un fichier `connections.yml` gitignored
-      listant des alias (nom du système → nom de la variable d'environnement
-      à lire), pour ne pas retaper l'URL à chaque audit. Jamais de secret en
-      clair dans ce fichier, seulement des noms de variables d'env.
+- [x] **Connexions nommées** — fait le 2026-08-22. `connections.yml` à la
+      racine du repo (ajouté à `.gitignore`, jamais commité), un
+      `connections.example.yml` versionné documente le format : alias → nom
+      de la variable d'environnement à lire, jamais un secret en clair.
+      `--conn ALIAS` résout l'URL via `$<variable>` ; priorité `--url` >
+      `--conn` > `$DATABASE_URL`, inchangée si aucun alias n'est utilisé.
+      Testé en direct : `--conn ecommerce_test` avec un `connections.yml`
+      temporaire pointant vers `$SCAN_TEST_DB_URL`, contre la vraie base
+      ecommerce, scanné avec succès (`--tables customer product`) ; fichier
+      de test supprimé après coup, jamais commité.
 - [ ] *(Plus tard, chantier à part)* **Portail hébergé multi-ERP** — déjà
       écarté sciemment pour l'instant (voir README). Modèle de risque
       différent : coffre-fort à secrets, contrôle d'accès réseau, plus une
