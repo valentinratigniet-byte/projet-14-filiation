@@ -560,6 +560,18 @@
   .assistant-answer.is-loading p { color: var(--text-muted); font-style: italic; }
   .assistant-answer.is-error p { color: var(--fail); }
 
+  .quality-explain { display: flex; flex-direction: column; gap: 0.35rem; }
+  .quality-explain.is-open { flex-basis: 100%; }
+  .quality-explain-btn {
+    align-self: flex-start;
+    font-family: "IBM Plex Mono", monospace; font-size: 0.68rem;
+    padding: 0.25rem 0.55rem; border: 1px dashed var(--border); background: none;
+    color: var(--text-muted); border-radius: 6px; cursor: pointer;
+  }
+  .quality-explain-btn:hover { color: var(--text); border-color: var(--accent); }
+  .quality-explain .ai-suggestion.is-error { border-color: var(--fail); }
+  .quality-explain .ai-suggestion.is-error p { color: var(--fail); font-style: normal; }
+
   .lineage-figure { margin: 0; }
   .lineage-figure svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }
   .lineage-figure figcaption { text-align: center; font-size: 0.78rem; color: var(--text-muted); margin-top: 0.4rem; }
@@ -11841,7 +11853,7 @@
     return wrap;
   }
 
-  function columnsSection(columns) {
+  function columnsSection(columns, nodeId) {
     const wrap = document.createElement("div");
     wrap.className = "col-list";
     for (const col of columns) {
@@ -11865,8 +11877,9 @@
           pill.className = "quality-pill";
           const dot = document.createElement("span");
           dot.className = "quality-dot status-" + t.status;
-          pill.append(dot, document.createTextNode(t.label));
+          pill.append(dot, document.createTextNode(t.note ? t.label + " — " + t.note : t.label));
           testsRow.appendChild(pill);
+          if (t.status !== "ok") testsRow.appendChild(qualityExplainWidget(nodeId, { label: col.name + " — " + t.label, status: t.status, note: t.note }));
         }
         row.appendChild(testsRow);
       }
@@ -12699,6 +12712,64 @@
     };
   }
 
+  function qualityExplainContext(nodeId, check) {
+    const n = nodes[nodeId];
+    const impacted = Array.from(downstreamClosure(nodeId)).filter(canSeeNode).map(nodeSummary);
+    return {
+      element: { nom: n.name, type: TYPE_LABEL[n.type], domaine: n.domain },
+      controle: { libelle: check.label, statut: check.status, note: check.note || null },
+      impacte_en_aval: impacted,
+    };
+  }
+
+  function qualityExplainWidget(nodeId, check) {
+    const wrap = document.createElement("div");
+    wrap.className = "quality-explain";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "quality-explain-btn";
+    btn.textContent = "🤖 Expliquer l'impact";
+    const box = document.createElement("div");
+    box.className = "ai-suggestion";
+    box.hidden = true;
+    const badge = document.createElement("span");
+    badge.className = "ai-suggestion-badge";
+    badge.textContent = "🤖 Explication IA — non vérifiée";
+    const p = document.createElement("p");
+    box.append(badge, p);
+
+    btn.addEventListener("click", async () => {
+      if (p.textContent && !box.classList.contains("is-error")) { box.hidden = !box.hidden; wrap.classList.toggle("is-open", !box.hidden); return; }
+      btn.disabled = true;
+      box.hidden = false;
+      wrap.classList.add("is-open");
+      box.classList.remove("is-error");
+      p.textContent = "Interrogation de l'assistant local (bv-ollama)…";
+      try {
+        const prompt = "Tu es un assistant qui traduit un contrôle qualité de données en langage non "
+          + "technique. En UNE phrase, explique l'impact probable en aval de ce contrôle, à partir "
+          + "UNIQUEMENT du contexte JSON suivant. Ne pas inventer d'informations absentes du contexte.\n\n"
+          + "Contexte :\n" + JSON.stringify(qualityExplainContext(nodeId, check), null, 2);
+        const res = await fetch(OLLAMA_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ model: OLLAMA_MODEL, prompt, stream: false }),
+        });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        p.textContent = data.response || "(réponse vide)";
+      } catch (err) {
+        box.classList.add("is-error");
+        p.textContent = "Assistant indisponible — vérifier que bv-ollama tourne sur localhost:11434. Détail : " + err.message;
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    wrap.append(btn, box);
+    return wrap;
+  }
+
   function populateAssistantSelect() {
     const sel = document.getElementById("assistant-node");
     const current = sel.value;
@@ -12879,6 +12950,7 @@
         dot.className = "quality-dot status-" + check.status;
         pill.append(dot, document.createTextNode(check.note ? check.label + " — " + check.note : check.label));
         qRow.appendChild(pill);
+        if (check.status !== "ok") qRow.appendChild(qualityExplainWidget(id, check));
       }
       root.appendChild(qRow);
     }
@@ -12893,7 +12965,7 @@
 
     // Colonnes (projet réel : structure de la table telle qu'introspectée)
     if (node.columns && node.columns.length && ROLES[currentRole].sections.columns) {
-      root.appendChild(section("Colonnes", columnsSection(node.columns)));
+      root.appendChild(section("Colonnes", columnsSection(node.columns, id)));
     }
 
     // Détails techniques (repliés) : SQL + valeurs observées

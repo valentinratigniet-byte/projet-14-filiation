@@ -251,12 +251,29 @@ raccourci technique.
       CORS non testé (Ollama filtre l'`Origin` par défaut — si la page est
       ouverte en `file://`, `OLLAMA_ORIGINS` pourrait devoir être élargi côté
       conteneur ; à vérifier au premier essai réel).
-- [ ] **Explication des échecs de qualité** — sur un check `warn`/`fail`
-      (ex. "12 produits sans coût renseigné"), un résumé LLM en une phrase
-      de l'impact probable en aval (quels indicateurs métier sont affectés,
-      via la fermeture transitive `usedBy` déjà existante) — traduit un fait
-      technique en langage compréhensible par un rôle non technique (PDG,
-      RH), cohérent avec le filtrage par rôle déjà en place.
+- [x] **Explication des échecs de qualité** — fait le 2026-08-22. Bouton
+      "🤖 Expliquer l'impact" affiché à côté de chaque pastille de contrôle
+      `warn`/`fail` (jamais sur un `ok`, rien à expliquer) — présent à la
+      fois sur les indicateurs/calculs du jeu démo (`node.quality`) et sur
+      les tests dbt par colonne du jeu réel (`col.tests`). Au clic, appelle
+      `bv-ollama` (même endpoint que l'onglet Assistant) avec pour contexte
+      le libellé/statut/note du contrôle + la fermeture transitive `usedBy`
+      déjà calculée pour l'analyse d'impact (`downstreamClosure`, filtrée
+      par `canSeeNode` pour ne jamais nommer à un rôle un élément qu'il ne
+      peut pas voir), et affiche une explication en une phrase dans un
+      encadré "non vérifiée" identique à celui des suggestions de
+      description. **Volontairement pas gouverné par `sections.assistant`**
+      (contrairement à l'onglet Assistant) : PDG et RH y ont accès sur les
+      éléments qu'ils voient déjà, c'était l'intention explicite de ce point
+      de la ROADMAP ("traduit un fait technique en langage compréhensible
+      par un rôle non technique"). Corrigé au passage : `columnsSection`
+      n'affichait jamais la `note` d'un test de colonne dans sa pastille
+      (contrairement à `node.quality`) — incohérence pré-existante, alignée
+      sur le même format `label — note`. Vérifié en jsdom (bouton présent
+      uniquement sur les checks non-ok, jeu démo ET jeu réel, chemin
+      d'erreur réseau simulé). `bv-ollama` non démarré pendant cette
+      session — même limite que l'onglet Assistant, pas encore vérifié avec
+      une vraie réponse.
 
 ### Pipelines (orchestration réelle)
 
