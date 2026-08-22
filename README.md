@@ -17,6 +17,7 @@
 [Lancer / régénérer](#-lancer--régénérer) ·
 [Valise de détection](#-valise-de-détection--auditer-une-base-sans-projet-dbt) ·
 [Power BI](#-power-bi--mesures-et-colonnes-calculées-dax) ·
+[Pipelines n8n](#-pipelines-n8n) ·
 [Limites assumées](#️-limites-assumées) ·
 [Feuille de route →](ROADMAP.md)
 
@@ -35,10 +36,9 @@
    (voir historique de commits : une régression silencieuse s'est déjà
    produite ici, cause et correctif dans le commit
    `fix: page blanche depuis l'ajout des rôles (erreur JS au chargement)`).
-4. **Ce qui reste à faire** : [ROADMAP.md](ROADMAP.md) — SQL Server (aucune
-   instance locale disponible), et sur le chantier Power BI : mesures
-   dupliquées entre plusieurs rapports `.pbix` (nécessite de corréler
-   plusieurs modèles, pas encore attaqué).
+4. **Ce qui reste à faire** : [ROADMAP.md](ROADMAP.md) — les 4 chantiers
+   sont substantiellement bouclés, il ne reste que des points annexes
+   (exécutions/statuts n8n live, vues matérialisées/triggers côté bases...).
 
 ## 🧬 Ce que fait le projet
 
@@ -143,14 +143,16 @@ qui peut agir — pas si l'action est sûre.
 | Instantanés historisés | 2 | 1 extraction réelle + 1 exemple simulé (illustratif, pour démontrer la vue Dérive) |
 | Lignes en base, couche `raw` (projet réel) | 168 741 | comptage réel via psycopg2, pas une estimation — `fct_sales` seul : 121 331 |
 | Relations inférées | 4 | convention de nommage `xxx_id` → table `xxx`, sur les 5 tables `raw` (1 système) |
-| Mesures DAX (Power BI, Projet 13) | 17 | extraites du modèle réel via MCP `powerbi-modeling`, liées par lignage textuel aux tables dbt existantes |
+| Mesures DAX (Power BI, Projets 09 + 13) | 34 | extraites de 2 modèles réels via MCP `powerbi-modeling` — 17 duplications de nom détectées entre les deux, 15 de formule |
+| Workflows n8n (pipeline) | 5 | lus depuis `projet-baptiste-valentin/n8n/workflows/*.json`, aucune connexion live |
+| Nœuds réels au total (jeu "Projet réel", fusionné) | 61 | dbt_ecommerce + bv-postgres-dbtdev + bv-mysql-crm + Power BI (34) + n8n (5) |
 
 ## 🗂️ Contenu
 
 ```
 projet-14-filiation/
 ├── README.md
-├── ROADMAP.md                     ← ce qui reste à faire (3 chantiers priorisés)
+├── ROADMAP.md                     ← historique des 4 chantiers (tous substantiellement bouclés) et ce qui reste
 ├── index.html                    ← l'outil, page unique auto-suffisante
 ├── requirements.txt               ← sqlglot, sqlalchemy (optionnels selon le script utilisé)
 ├── snapshots/                     ← historique d'extractions (pour la vue Dérive)
@@ -159,10 +161,14 @@ projet-14-filiation/
     ├── extract_filiation.py      ← régénère index.html + historise un instantané depuis un target/ dbt
     ├── scan_database.py          ← "valise de détection" : scanne n'importe quelle base, sans dbt
     ├── extract_powerbi.py        ← ajoute mesures/colonnes calculées DAX depuis un export JSON (MCP powerbi-modeling)
-    ├── powerbi_export.example.json  ← schéma attendu par extract_powerbi.py --from-json
+    ├── powerbi_export.example.json      ← schéma attendu par extract_powerbi.py --from-json
+    ├── find_duplicate_powerbi_measures.py  ← annote les mesures dupliquées entre plusieurs .pbix
+    ├── extract_n8n.py            ← ajoute des nœuds pipeline depuis des workflows n8n versionnés en JSON
     ├── suggest_descriptions.py   ← descriptions suggérées par LLM local (bv-ollama), jamais imposées
     ├── test_scan_database.py     ← self-check scan_database.py (SQLite jetable)
-    └── test_extract_powerbi.py   ← self-check extract_powerbi.py (parsing DAX, sans modèle live)
+    ├── test_extract_powerbi.py   ← self-check extract_powerbi.py (parsing DAX, sans modèle live)
+    ├── test_find_duplicate_powerbi_measures.py  ← self-check détection de doublons (dumps synthétiques)
+    └── test_extract_n8n.py       ← self-check extract_n8n.py (workflows synthétiques)
 ```
 
 ## 🚀 Lancer / régénérer
@@ -249,6 +255,45 @@ python scripts/extract_powerbi.py --from-json powerbi_export.json
 Toujours additif (contrairement à `scan_database.py` sans `--merge`) : un
 modèle Power BI vient s'ajouter aux nœuds réels déjà présents, il ne les
 remplace jamais.
+
+**Mesures dupliquées entre rapports** : une fois deux modèles (ou plus)
+extraits, `scripts/find_duplicate_powerbi_measures.py` compare leurs exports
+JSON et détecte, indépendamment, une même mesure recopiée entre rapports
+(même nom) ou une même logique sous un autre nom (même formule DAX
+normalisée) — annote les nœuds déjà présents (aucun nouveau nœud) avec un
+contrôle qualité, réutilisant la même pastille + bouton IA que le reste de
+l'outil :
+
+```bash
+python scripts/extract_powerbi.py --from-json projet09.json
+python scripts/extract_powerbi.py --from-json projet13.json
+python scripts/find_duplicate_powerbi_measures.py --from-json projet09.json --from-json projet13.json --apply
+```
+
+Testé en réel entre les Projets 09 et 13 (17 mesures chacun, même socle) :
+17 duplications de nom, 15 de formule — les 2 écarts (`CA moyenne 3M`,
+`Rang produit`) ont le même nom mais une logique réellement différente
+entre les deux rapports, exactement le genre de dérive silencieuse que ce
+script existe pour repérer.
+
+## 🔗 Pipelines n8n
+
+Un nœud par workflow n8n réel (`type: "pipeline"`) : déclencheur, étapes
+dans l'ordre de l'export, lignage textuel best-effort vers les tables
+dbt/base déjà présentes (regex sur les requêtes Postgres des workflows), et
+un contrôle qualité tiré d'une vraie règle métier du projet partagé (accès
+Postgres limité à la couche Gold `public_marts`, jamais direct sur
+`raw`/`erp_migre`).
+
+**Contrairement à Power BI, aucun MCP nécessaire** : les workflows sont déjà
+versionnés en JSON (`projet-baptiste-valentin/n8n/workflows/*.json`),
+`scripts/extract_n8n.py` les lit directement — pas de connexion, pas
+d'identifiant, l'API n8n live reste inaccessible (authentification requise,
+bloquée par le classificateur de commandes) mais n'est pas nécessaire ici.
+
+```bash
+python scripts/extract_n8n.py   # --workflows-dir pour un autre dossier
+```
 
 ## ⚠️ Limites assumées
 

@@ -40,8 +40,22 @@ régression sur Postgres.
       sans régression contre la vraie base ecommerce (5 tables `raw`, 19
       tables tous schémas). Quoting, FK, clé composite et détection NULL
       confirmés corrects sur MySQL dans la foulée.
-      **Reste à faire** : SQL Server (`pyodbc`) — pas testé, aucune
-      instance disponible localement pour le moment.
+      **SQL Server testé le 2026-08-22** : conteneur `mssql/server:2022`
+      jetable (`sa`/mot de passe de test, supprimé après coup). Premier
+      essai avec le seul pilote ODBC disponible sur ce poste ("SQL Server",
+      legacy) : `get_table_names()` échouait avec `HY104 — Valeur de
+      précision non valide` — bug de compatibilité connu entre ce pilote et
+      les requêtes SQLAlchemy qui bindent des paramètres `NVARCHAR(MAX)`.
+      Root cause corrigée, pas contournée : installé `Microsoft ODBC Driver
+      18 for SQL Server` (`winget install Microsoft.msodbcsql.18 --source
+      winget` — le `--source winget` est nécessaire, la source `msstore`
+      échoue sur ce poste à cause de l'interception SSL déjà documentée).
+      Une fois le bon pilote installé : tables, vues, colonnes (nullable,
+      défaut), index et commentaire de table (extended property
+      `MS_Description`) tous corrects. `get_check_constraints()` lève
+      `NotImplementedError` sur le dialecte mssql — dégradé proprement via
+      `safe()` (chantier 2), confirmé en conditions réelles et pas
+      seulement en théorie.
 - [x] **Grosses bases** — fait le 2026-08-21. Deux options ajoutées à
       `scan_database.py` : `--tables NOM [NOM ...]` pour cibler une liste
       précise de tables, et `--top N` (aperçu rapide) qui fait d'abord un
@@ -271,17 +285,37 @@ vraie formule DAX, lignage résolu correctement y compris mesure-à-mesure
 plusieurs niveaux de `TOTALYTD`/`SAMEPERIODLASTYEAR`/`CALCULATE` ; 0 colonne
 calculée (confirmé via `columnType` sur les 30 colonnes du modèle — les 17
 mesures portent toute la logique, aucune colonne DAX). Fusionné dans
-`index.html` (56 nœuds réels au total). ROADMAP chantier 3 quasi bouclé.
+`index.html` (56 nœuds réels au total). ROADMAP chantier 3 désormais bouclé
+en entier (voir mesures dupliquées ci-dessous, fait le 2026-08-22).
 
-**Reste ouvert :**
-
-- [ ] **Mesures dupliquées entre plusieurs rapports `.pbix`** — nécessite de
-      corréler au moins deux modèles Power BI du portfolio (ex. Projet 09 et
-      Projet 13 partagent déjà 17 mesures identiques, hérité du même socle).
-      Pas encore attaqué : demande d'ouvrir/interroger deux modèles dans la
-      même session (deux instances Power BI Desktop simultanées) et un
-      export JSON par modèle, `extract_powerbi.py` ne gère aujourd'hui qu'un
-      seul export à la fois.
+- [x] **Mesures dupliquées entre plusieurs rapports `.pbix`** — fait le
+      2026-08-22. Nouveau script `scripts/find_duplicate_powerbi_measures.py`,
+      séparé de `extract_powerbi.py` (qui reste un export → un ensemble de
+      nœuds) : prend N `--from-json` (un par modèle déjà extrait), détecte
+      deux types de duplication indépendamment — **même nom** (across
+      modèles) et **même formule** (texte DAX normalisé, espaces/casse
+      ignorés) — et **annote** (n'ajoute aucun nœud) les nœuds `dax-measure`
+      déjà présents avec un contrôle qualité "Mesure dupliquée entre
+      rapports", réutilisant tel quel le mécanisme pastille/bouton IA
+      "Expliquer l'impact" du chantier 4 (zéro code HTML/JS neuf). `--apply`
+      pour écrire, sans (dry-run) pour juste afficher le rapport ; idempotent
+      (ne réinjecte pas une annotation déjà posée par un run précédent —
+      vérifié par un test dédié).
+      **Exécuté pour de vrai** : Power BI Desktop ouvert une seconde fois sur
+      `dashboard-ventes.pbix` (Projet 09, séquentiellement après Projet 13 —
+      pas besoin des deux instances simultanément, contrairement à ce qui
+      était supposé). 17 mesures extraites, mêmes 17 noms que Projet 13
+      (confirme "hérité du même socle"). Comparaison réelle : **17
+      duplications de nom, 15 duplications de formule** — 2 mesures
+      (`CA moyenne 3M`, `Rang produit`) ont le même nom mais une formule
+      *différente* entre les deux rapports (Projet 09 a une version plus
+      robuste de la moyenne glissante avec gestion du blanc), signal
+      réellement utile qu'une simple comparaison de nom aurait raté.
+      **Limite assumée** (regex, pas un vrai parseur DAX) : `Rang produit`
+      a la même logique dans les deux rapports mais un espacement différent
+      autour d'un argument positionnel vide (`, ,` vs `,,`) que la
+      normalisation par espaces ne résorbe pas — resterait un faux négatif
+      sur la détection "même formule" (rattrapé par la détection "même nom").
 
 ## 🔗 4. Connexion à l'écosystème réel (LLM, pipelines, bases multiples)
 
@@ -371,26 +405,60 @@ raccourci technique.
 
 ### Pipelines (orchestration réelle)
 
-**Tenté le 2026-08-22, reporté** : `bv-n8n` répond (`/healthz` → 200) mais
-son API (`/rest/executions`, `/api/v1/*`) exige une authentification —
-session via `/rest/login` (email+mot de passe) ou clé API générée à la main
-dans Settings → API. Les deux passent par la soumission d'un identifiant
-dans une commande, ce que le classificateur auto-mode de Claude Code refuse
-automatiquement (même blocage que pour les connexions base de données, voir
-chantier 1/17e commit). Surtout : **`bv-n8n` n'a encore aucun workflow ni
-exécution réelle** — confirmé avec Valentin le 2026-08-22, ça n'aurait rien
-eu à exposer de toute façon. Reporté jusqu'à ce que les deux conditions
-soient réunies : de vrais workflows dans `bv-n8n` (ou un n8n/Prefect dédié à
-ce projet, plus simple à authentifier), et une décision sur comment fournir
-la clé API sans passer par une commande bloquée (Valentin la génère et la
-colle lui-même via `!`, ou l'exporte en `$N8N_API_KEY` avant de lancer le
-script d'extraction).
+**Tenté le 2026-08-22, reporté une première fois** : `bv-n8n` répond
+(`/healthz` → 200) mais son API (`/rest/executions`, `/api/v1/*`) exige une
+authentification — session via `/rest/login` (email+mot de passe) ou clé API
+générée à la main dans Settings → API. Les deux passent par la soumission
+d'un identifiant dans une commande, ce que le classificateur auto-mode de
+Claude Code refuse automatiquement (même blocage que pour les connexions
+base de données, voir chantier 1/17e commit). Surtout : **`bv-n8n` n'avait
+encore aucun workflow ni exécution réelle** à ce moment-là.
 
+- [x] **Fait le 2026-08-22, plus tard le même jour** — entre-temps, le
+      projet partagé a livré son Sprint 5 (Hub n8n) : `bv-n8n` porte
+      maintenant **5 workflows réels, versionnés en JSON** dans
+      `projet-baptiste-valentin/n8n/workflows/*.json` (dette technique du
+      projet partagé déjà résolue de leur côté : les workflows étaient créés
+      à la main via l'API, jamais versionnés — voir leur `docs/N8N.md`).
+      **Contournement du blocage d'authentification, pas une résolution** :
+      plutôt que d'interroger l'API n8n live (toujours bloquée par
+      l'authentification), `scripts/extract_n8n.py` lit directement ces
+      fichiers JSON déjà versionnés — lecture de fichiers, aucune connexion,
+      aucun identifiant, aucun classificateur à contourner. Un nœud
+      `type: "pipeline"` par workflow : déclencheur (chemin webhook), étapes
+      dans l'ordre de l'export (`pipelineSteps`, nouvelle section "Étapes du
+      pipeline" sur la fiche), lignage textuel best-effort vers les tables
+      dbt/base déjà présentes (regex `schema.table` sur le texte des
+      requêtes Postgres des nœuds `n8n-nodes-base.postgres`, schémas connus
+      du projet partagé — `public_marts`/`raw`/`erp_migre`/`marts`/
+      `staging` — pour ne pas confondre un alias de table avec un vrai
+      schéma). Contrôle qualité réel tiré de la documentation du projet
+      partagé ("règle d'or : tous les accès Postgres se font sur
+      `public_marts`, jamais sur `raw`/`erp_migre`") : un workflow qui
+      référence directement `raw`/`erp_migre` est signalé — aucun des 5
+      workflows réels ne l'est (règle respectée), vérifié avec un cas
+      volontaire non conforme dans `test_extract_n8n.py`. Toujours additif
+      comme `extract_powerbi.py`. Nouveau type `dax`-like `pipeline` (couleur
+      dédiée `--pipeline`, rose) décliné aux mêmes 5 endroits CSS que
+      `dax-measure`/`dax-column` ; carte "n8n — bv-dataplatform" dans la vue
+      Systèmes. **Bug latent trouvé en étendant** : les tokens de couleur
+      `--dax`/`--dax-soft` du chantier 3 manquaient dans le bloc
+      `:root[data-theme="dark"]` (présents seulement dans le bloc
+      `@media (prefers-color-scheme: dark)`, indentation différente —
+      l'édit précédent ne les avait remplacés que dans un seul des deux
+      blocs) : un thème sombre choisi explicitement (pas juste la préférence
+      système) aurait affiché un badge Power BI sans couleur. Corrigé au
+      passage pour `--dax` ET dès le départ pour `--pipeline`. Fusionné dans
+      `index.html` (61 nœuds réels). Reste ouvert, mineur : lecture des
+      workflows en JSON statique, pas d'exécutions/statuts live (nécessiterait
+      l'API authentifiée, toujours bloquée) — cohérent avec le principe déjà
+      acté pour Power BI/dbt : Filiation documente la *structure* réelle, pas
+      un flux temps réel.
 - [ ] Le domaine **Data** du jeu démo (fraîcheur pipelines, succès jobs,
-      score qualité) est aujourd'hui entièrement fictif — le remplacer par
-      du réel sur le même principe qu'`extract_filiation.py`/
-      `scan_database.py` : un nouveau script en lecture seule qui interroge
-      un vrai orchestrateur et régénère les nœuds correspondants.
+      score qualité) reste entièrement fictif — pourrait être remplacé par
+      du réel sur le même principe (nœuds `pipeline` du jeu réel), pas fait
+      pour l'instant : le jeu démo sert de vitrine pédagogique volontairement
+      indépendante du jeu réel.
 - [ ] Deux pistes déjà présentes sur ce poste : **Prefect** (déjà installé
       dans le venv du [[portfolio-data]] Projet 10, a une API REST pour
       lister flows/runs et leur statut, pas d'auth par mot de passe) et
