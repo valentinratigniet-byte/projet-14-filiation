@@ -1,14 +1,17 @@
 # Feuille de route
 
-État au 2026-08-22 (26 commits). Quatre chantiers identifiés à l'origine :
+État au 2026-08-22 (27 commits). Quatre chantiers identifiés à l'origine :
 1) durcir le raccordement aux bases, 2) compléter les informations qu'on en
 extrait, 3) étendre le lignage jusqu'à la couche Power BI, 4) connecter
 l'outil au reste de l'écosystème réel (LLM, orchestrateur de pipelines,
-bases multiples). **Les quatre sont maintenant substantiellement faits** —
-il ne reste que des points annexes explicitement marqués `[ ]` ci-dessous
-(SQL Server sans instance locale, mesures dupliquées entre plusieurs
-`.pbix`, pipelines n8n reportés faute de workflows réels). Détail par
-chantier ci-dessous, gardé pour la trace de ce qui a été fait et pourquoi.
+bases multiples). **Les quatre sont maintenant substantiellement faits**,
+y compris SQL Server, les mesures Power BI dupliquées et les pipelines n8n
+réels (tous fermés le 2026-08-22) — il ne reste que des points annexes
+explicitement marqués `[ ]` ci-dessous (exécutions/statuts n8n live,
+orchestrateur Prefect pour le domaine Data du jeu démo, quelques
+introspections base moins prioritaires, portail hébergé multi-ERP
+délibérément écarté). Détail par chantier ci-dessous, gardé pour la trace de
+ce qui a été fait et pourquoi.
 
 ## 🔌 1. Raccordement aux bases de données
 
@@ -486,11 +489,11 @@ encore aucun workflow ni exécution réelle** à ce moment-là.
       qualité) est capturée — `scan_database.py` n'extrait jamais de valeur
       de donnée. Commité et poussé sur le repo public avec l'accord
       explicite des deux (voir [[projet-baptiste-valentin]]).
-- [ ] Documenter clairement, une fois ce chantier commencé, la limite de
-      `scan_database.py` : basé sur SQLAlchemy, donc uniquement des bases
-      relationnelles (Postgres/MySQL/SQL Server/SQLite...) — pas MongoDB
-      (`bv-mongo-logs` en est un exemple présent sur ce poste, mais hors
-      périmètre de l'outil actuel, pas seulement hors périmètre "projet
+- [x] **Documenté le 2026-08-22** (README, section "Limites assumées") : la
+      limite de `scan_database.py`, basé sur SQLAlchemy donc uniquement des
+      bases relationnelles (Postgres/MySQL/SQL Server/SQLite...) — pas
+      MongoDB (`bv-mongo-logs` en est un exemple présent sur ce poste, mais
+      hors périmètre de l'outil actuel, pas seulement hors périmètre "projet
       partagé").
 
 ---

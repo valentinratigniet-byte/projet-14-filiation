@@ -49,26 +49,46 @@ au choix dans la barre latérale :
   score de qualité des données...) sur sept domaines (Ventes, Marketing,
   Finance, RH, Gestion de projets, Investissement, Data), pour démontrer le
   concept sans dépendre d'un vrai projet.
-- **Projet réel** — introspecté depuis le [Projet 10](../projet-10-pipeline-elt)
-  (`dbt_ecommerce`) : rien n'est inventé, tout vient de `manifest.json` /
-  `catalog.json` / `run_results.json`.
+- **Projet réel** — rien n'est inventé, tout vient d'une introspection
+  réelle, fusionnée depuis **5 systèmes indépendants** : le
+  [Projet 10](../projet-10-pipeline-elt) (`dbt_ecommerce`, manifest/catalog/
+  run_results), deux bases du projet partagé
+  [projet-baptiste-valentin](../../projet-baptiste-valentin)
+  (`bv-postgres-dbtdev`, `bv-mysql-crm`), deux modèles Power BI réels
+  ([Projet 09](../projet-09-dashboard-powerbi),
+  [Projet 13](../projet-13-entrepot-central-bigquery)) et 5 workflows n8n
+  réels du même projet partagé — 78 nœuds au total, un système par carte
+  dans la vue Systèmes.
 
 ```mermaid
 flowchart LR
     subgraph P10["Projet 10 — dbt_ecommerce"]
         MAN["manifest.json<br/>+ catalog.json<br/>+ run_results.json"]
     end
-    MAN -->|"extract_filiation.py<br/>(+ sqlglot pour le SQL compilé)"| JS["realNodes + SNAPSHOTS<br/>(JS)"]
+    subgraph DB["Bases (Postgres/MySQL/SQL Server/SQLite)"]
+        SQLA["SQLAlchemy<br/>introspection"]
+    end
+    subgraph PBI["Power BI (Projets 09 + 13)"]
+        MCP["MCP powerbi-modeling<br/>(mesures + colonnes DAX)"]
+    end
+    subgraph N8N["n8n (bv-dataplatform)"]
+        WF["workflows/*.json<br/>déjà versionnés"]
+    end
+
+    MAN -->|"extract_filiation.py<br/>(+ sqlglot)"| JS["realNodes + SNAPSHOTS<br/>(JS, toujours fusionné)"]
+    SQLA -->|scan_database.py| JS
+    MCP -->|"extract_powerbi.py<br/>+ find_duplicate_powerbi_measures.py"| JS
+    WF -->|extract_n8n.py| JS
     JS -->|régénère| HTML["index.html<br/>(Filiation)"]
     JS -->|historise| SNAP[("snapshots/*.json")]
     SNAP -.->|vue Dérive| HTML
-    HTML -->|clic formule/SQL/colonne| HTML
+    HTML -->|clic formule/SQL/DAX/colonne| HTML
 
     style HTML fill:#137A8B,color:#fff
     style MAN fill:#E4A93C,color:#1a1a1a
 ```
 
-Quatre façons de regarder le lignage, dans le même outil :
+Cinq façons de regarder le lignage, dans le même outil :
 
 1. **Fiche** — un nœud à la fois : formule ou SQL réel (colonnes cliquables),
    propriétaire/fraîcheur, qualité, dépendances directes, et pour le jeu réel
@@ -82,11 +102,17 @@ Quatre façons de regarder le lignage, dans le même outil :
 3. **Dérive** — compare deux instantanés historisés (`snapshots/*.json`) et
    liste ce qui a changé : modèles/sources ajoutés ou supprimés, colonnes
    ajoutées/supprimées/retypées, tests dbt ajoutés ou supprimés.
-4. **Systèmes** — vue par système source (ex. "Postgres — ecommerce") : ses
-   tables, leur volumétrie réelle (comptage direct en base), combien
-   d'éléments en dépendent en aval, et un mini schéma relationnel entre ses
-   tables (relations inférées par convention de nommage — ce projet ne
-   déclare aucune contrainte FK en base, vérifié via `information_schema`).
+4. **Systèmes** — vue par système source (ex. "Postgres — ecommerce",
+   "Power BI — Dashboard entrepot", "n8n — bv-dataplatform") : ses
+   tables/mesures/workflows, leur volumétrie réelle (comptage direct en
+   base quand ça s'applique), combien d'éléments en dépendent en aval, et
+   un mini schéma relationnel entre ses tables (relations inférées par
+   convention de nommage — ce projet ne déclare aucune contrainte FK en
+   base, vérifié via `information_schema`).
+5. **Assistant** — poser une question en langage naturel sur un élément du
+   graphe (ex. "d'où vient cette donnée ?"), répondue par un LLM local
+   (`bv-ollama`) dont le contexte se limite au sous-graphe pertinent
+   (l'élément + son voisinage direct), jamais tout le graphe.
 
 Là où dbt n'a pas de description, la page l'affiche honnêtement plutôt que
 d'improviser un texte.
@@ -96,9 +122,11 @@ d'improviser un texte.
 Un sélecteur en haut de la barre latérale change ce qui est visible :
 **Administrateur**/**Informatique** (accès complet), **Exploitation**
 (qualité/fraîcheur/systèmes, pas la logique de calcul), **PDG** (uniquement
-les indicateurs business, type `metric` — sur le projet réel, qui n'a encore
-aucun KPI modélisé, ce rôle voit un état vide honnête plutôt qu'un écran
-blanc), **RH** (uniquement les éléments tagués "Donnée personnelle (RGPD)" —
+les indicateurs business — type `metric` sur la démo, et les 34 mesures DAX
+réelles `dax-measure` sur le projet réel depuis le chantier Power BI ; avant
+ça, ce rôle affichait un état vide honnête plutôt qu'un écran blanc, faute
+de KPI modélisé), **RH** (uniquement les éléments tagués "Donnée personnelle
+(RGPD)" —
 `src_customer`/`stg_customers`/`dim_customer` sur le projet réel, taggés
 automatiquement dès qu'une colonne `email` est détectée). Les références vers
 un élément non accessible restent visibles mais verrouillées (🔒), pour
@@ -145,7 +173,7 @@ qui peut agir — pas si l'action est sûre.
 | Relations inférées | 4 | convention de nommage `xxx_id` → table `xxx`, sur les 5 tables `raw` (1 système) |
 | Mesures DAX (Power BI, Projets 09 + 13) | 34 | extraites de 2 modèles réels via MCP `powerbi-modeling` — 17 duplications de nom détectées entre les deux, 15 de formule |
 | Workflows n8n (pipeline) | 5 | lus depuis `projet-baptiste-valentin/n8n/workflows/*.json`, aucune connexion live |
-| Nœuds réels au total (jeu "Projet réel", fusionné) | 61 | dbt_ecommerce + bv-postgres-dbtdev + bv-mysql-crm + Power BI (34) + n8n (5) |
+| Nœuds réels au total (jeu "Projet réel", fusionné) | 78 | dbt_ecommerce + bv-postgres-dbtdev + bv-mysql-crm + Power BI Projets 09+13 (34 mesures) + n8n (5 pipelines) |
 
 ## 🗂️ Contenu
 
@@ -303,15 +331,27 @@ script après chaque `dbt run`*, pas une synchronisation live — pour ça il
 faudrait une vraie application avec un backend interrogeant la base à chaque
 chargement.
 
-`scripts/extract_powerbi.py` complète la chaîne jusqu'à Power BI (mesures et
-colonnes calculées DAX, liées par lignage textuel aux tables dbt/base
-existantes) mais **ne se connecte pas lui-même** à un modèle Power BI —
-contrairement aux deux autres scripts, il transforme un export JSON produit
-via le MCP `powerbi-modeling`, accessible uniquement depuis une session
-Claude Code avec le `.pbix` ouvert. Voir la section
+Chaque script d'extraction a son propre modèle de connexion — pas de
+prétention à l'uniformité là où la réalité diverge : `extract_filiation.py`
+lit un `target/` dbt compilé, `scan_database.py` se connecte en direct à
+n'importe quelle base SQLAlchemy, `extract_n8n.py` lit des workflows déjà
+versionnés en JSON, et `extract_powerbi.py` (seul cas) **ne se connecte pas
+lui-même** à un modèle Power BI — impossible en Python pur, il transforme un
+export JSON produit via le MCP `powerbi-modeling`, accessible uniquement
+depuis une session Claude Code avec le `.pbix` ouvert. Voir la section
 [Power BI](#-power-bi--mesures-et-colonnes-calculées-dax) plus bas. Le
 lignage `Table[Colonne]` fonctionne par correspondance de **nom** avec les
 nœuds déjà présents, pas par identité physique garantie — deux systèmes
 différents partageant un nom de table (ex. `dim_date`) sont ambigus, résolus
 arbitrairement (dernier trouvé), comme pour le lignage SQL clickable existant
-en cas de token dupliqué. Reste à faire : voir [ROADMAP.md](ROADMAP.md).
+en cas de token dupliqué.
+
+`scan_database.py` (SQLAlchemy) ne couvre que des bases **relationnelles**
+(Postgres/MySQL/SQL Server/SQLite...) — MongoDB (`bv-mongo-logs` sur ce
+poste, par exemple) est hors périmètre de l'outil actuel, pas seulement hors
+périmètre "projet partagé". `extract_n8n.py` lit la définition **statique**
+des workflows (étapes, requêtes), pas leurs exécutions ou statuts en
+direct — l'API n8n live existe mais reste derrière une authentification
+jamais résolue dans ce projet (voir [ROADMAP.md](ROADMAP.md), chantier 4).
+
+Reste à faire : voir [ROADMAP.md](ROADMAP.md).
