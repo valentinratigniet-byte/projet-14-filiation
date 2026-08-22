@@ -229,14 +229,28 @@ raccourci technique.
       script continue). Aucune écriture automatique de la doctrine
       officielle — un humain reste seul juge de ce qui devient la vraie
       description (dans dbt, dans un `COMMENT ON`...).
-- [ ] **Assistant "posez une question sur vos données"** — un champ de
-      question en langage naturel au-dessus du graphe de lignage
-      ("d'où vient ce chiffre ?", "qu'est-ce qui casse si je change X ?").
-      Contexte envoyé au LLM : uniquement le sous-graphe pertinent (le nœud
-      ciblé + ses dépendances/dépendants via `deps`/`usedBy`, déjà calculés
-      pour l'analyse d'impact), pas tout `demoNodes`/`realNodes` — reste
-      lisible et bon marché en tokens. Répond en langage naturel, ne modifie
-      jamais rien.
+- [x] **Assistant "posez une question sur vos données"** — fait le
+      2026-08-22. Nouvel onglet **Assistant** dans `index.html` (sélecteur
+      d'élément + question libre + réponse). Appel `fetch` client, direct
+      depuis la page vers `bv-ollama` (`llama3.2:3b`, `POST
+      http://localhost:11434/api/generate`) — aucune dépendance, aucun
+      script serveur, cohérent avec le principe "page statique, sans
+      backend" déjà posé pour ce projet. Contexte envoyé : uniquement le
+      sous-graphe pertinent (le nœud choisi + ses dépendances/dépendants
+      directs via `deps`/`usedBy`, réutilisés tels quels), jamais tout
+      `demoNodes`/`realNodes`. Onglet gouverné par le même mécanisme de
+      rôles que Graphe/Dérive/Systèmes (`sections.assistant`) — visible pour
+      Administrateur/Informatique/Exploitation, masqué pour PDG/RH dans
+      cette première version. Dégrade proprement si `bv-ollama` ne tourne
+      pas ou est injoignable (message d'erreur explicite plutôt qu'un plantage
+      silencieux). Vérifié en jsdom (onglet visible/masqué par rôle, sélecteur
+      peuplé, chemin d'erreur réseau affiché correctement, bouton
+      réactivé après échec) — `bv-ollama` n'était pas démarré au moment du
+      test, pas encore vérifié avec une vraie réponse du modèle.
+      **Reste à faire** : vérifier une vraie réponse avec `bv-ollama` lancé ;
+      CORS non testé (Ollama filtre l'`Origin` par défaut — si la page est
+      ouverte en `file://`, `OLLAMA_ORIGINS` pourrait devoir être élargi côté
+      conteneur ; à vérifier au premier essai réel).
 - [ ] **Explication des échecs de qualité** — sur un check `warn`/`fail`
       (ex. "12 produits sans coût renseigné"), un résumé LLM en une phrase
       de l'impact probable en aval (quels indicateurs métier sont affectés,

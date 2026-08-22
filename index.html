@@ -542,6 +542,24 @@
 
   .ai-suggestion p { margin: 0; color: var(--text); line-height: 1.6; font-size: 0.9rem; font-style: italic; }
 
+  .assistant-form { display: flex; gap: 0.6rem; align-items: flex-end; margin: 0 0 1.25rem; }
+  .assistant-form textarea {
+    flex: 1; font-family: "IBM Plex Sans", sans-serif; font-size: 0.9rem;
+    padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--surface); color: var(--text); resize: vertical;
+  }
+  .assistant-form button {
+    font-family: "IBM Plex Mono", monospace; font-size: 0.78rem; padding: 0.6rem 0.9rem;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text-muted);
+    border-radius: 6px; cursor: pointer;
+  }
+  .assistant-form button:hover:not(:disabled) { color: var(--text); border-color: var(--accent); }
+  .assistant-form button:disabled { opacity: 0.5; cursor: default; }
+  .assistant-answer { max-width: 70ch; }
+  .assistant-answer p { margin: 0; line-height: 1.6; font-size: 0.9rem; white-space: pre-wrap; }
+  .assistant-answer.is-loading p { color: var(--text-muted); font-style: italic; }
+  .assistant-answer.is-error p { color: var(--fail); }
+
   .lineage-figure { margin: 0; }
   .lineage-figure svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }
   .lineage-figure figcaption { text-align: center; font-size: 0.78rem; color: var(--text-muted); margin-top: 0.4rem; }
@@ -874,6 +892,7 @@
       <button type="button" class="view-btn" data-view="graphe">Graphe complet</button>
       <button type="button" class="view-btn" data-view="derive">Dérive</button>
       <button type="button" class="view-btn" data-view="systemes">Systèmes</button>
+      <button type="button" class="view-btn" data-view="assistant">Assistant</button>
     </div>
 
     <div id="fiche-view">
@@ -913,6 +932,20 @@
 
     <div id="systemes-view" hidden>
       <div id="systems-container"></div>
+    </div>
+
+    <div id="assistant-view" hidden>
+      <div class="derive-toolbar">
+        <label>Élément
+          <select id="assistant-node"></select>
+        </label>
+      </div>
+      <p class="derive-note">🤖 Assistant IA local (bv-ollama, llama3.2:3b) — répond uniquement à partir de la fiche de l'élément choisi et de son voisinage direct (ce dont il dépend, ce qui en dépend), jamais de tout le graphe. Réponse non vérifiée, à recouper avec la fiche.</p>
+      <form id="assistant-form" class="assistant-form">
+        <textarea id="assistant-question" rows="2" placeholder="Ex. : d'où vient cette donnée ? Pourquoi ce contrôle qualité peut-il échouer ?"></textarea>
+        <button type="submit" id="assistant-ask">Demander</button>
+      </form>
+      <div id="assistant-answer"></div>
     </div>
   </main>
 </div>
@@ -11463,31 +11496,31 @@
       label: "Administrateur",
       note: "Accès complet, y compris les outils de correction.",
       canSeeNode: () => true,
-      sections: { formula: true, sql: true, columns: true, correction: true, graphe: true, derive: true, systemes: true },
+      sections: { formula: true, sql: true, columns: true, correction: true, graphe: true, derive: true, systemes: true, assistant: true },
     },
     it: {
       label: "Informatique",
       note: "Accès technique complet (SQL, colonnes, lignage, systèmes).",
       canSeeNode: () => true,
-      sections: { formula: true, sql: true, columns: true, correction: true, graphe: true, derive: true, systemes: true },
+      sections: { formula: true, sql: true, columns: true, correction: true, graphe: true, derive: true, systemes: true, assistant: true },
     },
     exploitation: {
       label: "Exploitation",
       note: "Qualité, fraîcheur, volumétrie, systèmes — pas la logique de calcul (formule/SQL masqués).",
       canSeeNode: () => true,
-      sections: { formula: false, sql: false, columns: true, correction: false, graphe: true, derive: true, systemes: true },
+      sections: { formula: false, sql: false, columns: true, correction: false, graphe: true, derive: true, systemes: true, assistant: true },
     },
     pdg: {
       label: "PDG",
       note: "Uniquement les indicateurs business, aucun détail technique.",
       canSeeNode: (n) => n.type === "metric",
-      sections: { formula: true, sql: false, columns: false, correction: false, graphe: false, derive: false, systemes: false },
+      sections: { formula: true, sql: false, columns: false, correction: false, graphe: false, derive: false, systemes: false, assistant: false },
     },
     rh: {
       label: "RH",
       note: "Uniquement les éléments contenant des données personnelles (RGPD) — besoin d'en connaître.",
       canSeeNode: (n) => (n.tags || []).includes("Donnée personnelle (RGPD)"),
-      sections: { formula: false, sql: false, columns: true, correction: false, graphe: false, derive: false, systemes: false },
+      sections: { formula: false, sql: false, columns: true, correction: false, graphe: false, derive: false, systemes: false, assistant: false },
     },
   };
   let currentRole = "admin";
@@ -11604,7 +11637,8 @@
     document.querySelector('[data-view="graphe"]').hidden = !sections.graphe;
     document.querySelector('[data-view="derive"]').hidden = !sections.derive;
     document.querySelector('[data-view="systemes"]').hidden = !sections.systemes;
-    if ((currentView === "graphe" && !sections.graphe) || (currentView === "derive" && !sections.derive) || (currentView === "systemes" && !sections.systemes)) {
+    document.querySelector('[data-view="assistant"]').hidden = !sections.assistant;
+    if ((currentView === "graphe" && !sections.graphe) || (currentView === "derive" && !sections.derive) || (currentView === "systemes" && !sections.systemes) || (currentView === "assistant" && !sections.assistant)) {
       switchView("fiche");
     }
   }
@@ -12071,9 +12105,11 @@
     document.getElementById("graphe-view").hidden = view !== "graphe";
     document.getElementById("derive-view").hidden = view !== "derive";
     document.getElementById("systemes-view").hidden = view !== "systemes";
+    document.getElementById("assistant-view").hidden = view !== "assistant";
     if (view === "graphe") { graphFocusId = null; renderGraphView(); }
     if (view === "derive") populateDeriveSelects();
     if (view === "systemes") renderSystemsView();
+    if (view === "assistant") populateAssistantSelect();
   }
 
   // Niveau = plus long chemin depuis une source (sans dépendance) — place les
@@ -12633,6 +12669,92 @@
       container.appendChild(card);
     }
   }
+
+  // ---------- Assistant IA (questions en langage naturel, contexte = nœud + voisinage direct) ----------
+
+  const OLLAMA_URL = "http://localhost:11434/api/generate";
+  const OLLAMA_MODEL = "llama3.2:3b";
+
+  function nodeSummary(id) {
+    const n = nodes[id];
+    return { id, nom: n.name, type: TYPE_LABEL[n.type], domaine: n.domain, description: n.description || null };
+  }
+
+  function buildAssistantContext(id) {
+    const n = nodes[id];
+    return {
+      element: {
+        nom: n.name, type: TYPE_LABEL[n.type], domaine: n.domain,
+        description: n.description || null,
+        formule: n.formula || null,
+        sql: n.sql || null,
+        proprietaire: n.owner || null,
+        frequence_rafraichissement: n.refresh || null,
+        derniere_mise_a_jour: n.last_updated || null,
+        controles_qualite: n.quality || [],
+        volumetrie: typeof n.rowCount === "number" ? n.rowCount : null,
+      },
+      depend_de: (n.deps || []).filter((d) => nodes[d]).map(nodeSummary),
+      utilise_par: usedBy(id).map(nodeSummary),
+    };
+  }
+
+  function populateAssistantSelect() {
+    const sel = document.getElementById("assistant-node");
+    const current = sel.value;
+    sel.innerHTML = "";
+    const ids = Object.keys(nodes).filter(canSeeNode).sort((a, b) => nodes[a].name.localeCompare(nodes[b].name));
+    ids.forEach((id) => {
+      const opt = document.createElement("option");
+      opt.value = id;
+      opt.textContent = nodes[id].name;
+      sel.appendChild(opt);
+    });
+    const focus = history[history.length - 1];
+    sel.value = ids.includes(current) ? current : (ids.includes(focus) ? focus : (ids[0] || ""));
+  }
+
+  document.getElementById("assistant-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const nodeId = document.getElementById("assistant-node").value;
+    const question = document.getElementById("assistant-question").value.trim();
+    const answerBox = document.getElementById("assistant-answer");
+    const askBtn = document.getElementById("assistant-ask");
+    if (!nodeId || !question) return;
+
+    askBtn.disabled = true;
+    answerBox.className = "assistant-answer is-loading";
+    answerBox.innerHTML = "<p>Interrogation de l'assistant local (bv-ollama)…</p>";
+
+    const context = buildAssistantContext(nodeId);
+    const prompt = "Tu es un assistant de traçabilité de données (lineage). Réponds en français, "
+      + "de façon concise, UNIQUEMENT à partir du contexte JSON ci-dessous (un élément et son "
+      + "voisinage direct). Si la réponse n'y figure pas, dis-le clairement plutôt que d'inventer.\n\n"
+      + "Contexte :\n" + JSON.stringify(context, null, 2) + "\n\nQuestion : " + question;
+
+    try {
+      const res = await fetch(OLLAMA_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: OLLAMA_MODEL, prompt, stream: false }),
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const data = await res.json();
+      answerBox.className = "assistant-answer";
+      answerBox.innerHTML = "";
+      const p = document.createElement("p");
+      p.textContent = data.response || "(réponse vide)";
+      answerBox.appendChild(p);
+    } catch (err) {
+      answerBox.className = "assistant-answer is-error";
+      answerBox.innerHTML = "";
+      const p = document.createElement("p");
+      p.textContent = "Assistant indisponible — vérifier que bv-ollama tourne sur localhost:11434 (conteneur du projet partagé). Détail : " + err.message;
+      answerBox.appendChild(p);
+    } finally {
+      askBtn.disabled = false;
+    }
+  });
 
   function render() {
     const id = history[history.length - 1];
