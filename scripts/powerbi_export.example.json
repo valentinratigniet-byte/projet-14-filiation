@@ -1,0 +1,43 @@
+{
+  "model": "Nom du rapport Power BI",
+  "tables": [
+    {"name": "fct_sales", "description": "Optionnel — informatif seulement, extract_powerbi.py ne s'en sert pas (les tables Power BI sont reliées aux nœuds dbt/base déjà présents par correspondance de nom)."}
+  ],
+  "measures": [
+    {
+      "tableName": "_Mesures",
+      "name": "CA",
+      "expression": "SUM ( fct_sales[line_amount] )",
+      "description": "Chiffre d'affaires total.",
+      "displayFolder": "1. Base",
+      "formatString": "#,##0.00 €",
+      "dataType": "Double"
+    },
+    {
+      "tableName": "_Mesures",
+      "name": "Panier moyen",
+      "expression": "DIVIDE ( [CA], [Nb commandes] )",
+      "description": "CA / nombre de commandes distinctes.",
+      "displayFolder": "1. Base",
+      "formatString": "#,##0.00 €",
+      "dataType": "Double"
+    }
+  ],
+  "columns": [
+    {
+      "tableName": "dim_product",
+      "name": "prix_ttc",
+      "dataType": "Double",
+      "columnType": "Calculated",
+      "expression": "dim_product[price] * 1.2",
+      "description": "Prix TTC, calculé à partir du prix catalogue HT."
+    },
+    {
+      "tableName": "fct_sales",
+      "name": "line_amount",
+      "dataType": "Double",
+      "columnType": "Data",
+      "description": "Colonne importée (pas calculée) — ignorée par extract_powerbi.py, qui ne retient que columnType == \"Calculated\"."
+    }
+  ]
+}

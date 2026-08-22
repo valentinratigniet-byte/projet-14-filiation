@@ -16,6 +16,7 @@
 [Reprise rapide](#-reprise-rapide-après-une-pause) ·
 [Lancer / régénérer](#-lancer--régénérer) ·
 [Valise de détection](#-valise-de-détection--auditer-une-base-sans-projet-dbt) ·
+[Power BI](#-power-bi--mesures-et-colonnes-calculées-dax) ·
 [Limites assumées](#️-limites-assumées) ·
 [Feuille de route →](ROADMAP.md)
 
@@ -34,9 +35,10 @@
    (voir historique de commits : une régression silencieuse s'est déjà
    produite ici, cause et correctif dans le commit
    `fix: page blanche depuis l'ajout des rôles (erreur JS au chargement)`).
-4. **Ce qui reste à faire** : [ROADMAP.md](ROADMAP.md) — raccordement aux
-   bases de données (durcissement), complétude des informations extraites,
-   et extension du lignage jusqu'aux mesures/colonnes calculées Power BI.
+4. **Ce qui reste à faire** : [ROADMAP.md](ROADMAP.md) — SQL Server (aucune
+   instance locale disponible), et sur le chantier Power BI : mesures
+   dupliquées entre plusieurs rapports `.pbix` (nécessite de corréler
+   plusieurs modèles, pas encore attaqué).
 
 ## 🧬 Ce que fait le projet
 
@@ -141,6 +143,7 @@ qui peut agir — pas si l'action est sûre.
 | Instantanés historisés | 2 | 1 extraction réelle + 1 exemple simulé (illustratif, pour démontrer la vue Dérive) |
 | Lignes en base, couche `raw` (projet réel) | 168 741 | comptage réel via psycopg2, pas une estimation — `fct_sales` seul : 121 331 |
 | Relations inférées | 4 | convention de nommage `xxx_id` → table `xxx`, sur les 5 tables `raw` (1 système) |
+| Mesures DAX (Power BI, Projet 13) | 17 | extraites du modèle réel via MCP `powerbi-modeling`, liées par lignage textuel aux tables dbt existantes |
 
 ## 🗂️ Contenu
 
@@ -151,9 +154,15 @@ projet-14-filiation/
 ├── index.html                    ← l'outil, page unique auto-suffisante
 ├── requirements.txt               ← sqlglot, sqlalchemy (optionnels selon le script utilisé)
 ├── snapshots/                     ← historique d'extractions (pour la vue Dérive)
+├── connections.example.yml        ← template pour connections.yml (gitignoré) : alias -> nom de var d'env
 └── scripts/
     ├── extract_filiation.py      ← régénère index.html + historise un instantané depuis un target/ dbt
-    └── scan_database.py          ← "valise de détection" : scanne n'importe quelle base, sans dbt
+    ├── scan_database.py          ← "valise de détection" : scanne n'importe quelle base, sans dbt
+    ├── extract_powerbi.py        ← ajoute mesures/colonnes calculées DAX depuis un export JSON (MCP powerbi-modeling)
+    ├── powerbi_export.example.json  ← schéma attendu par extract_powerbi.py --from-json
+    ├── suggest_descriptions.py   ← descriptions suggérées par LLM local (bv-ollama), jamais imposées
+    ├── test_scan_database.py     ← self-check scan_database.py (SQLite jetable)
+    └── test_extract_powerbi.py   ← self-check extract_powerbi.py (parsing DAX, sans modèle live)
 ```
 
 ## 🚀 Lancer / régénérer
@@ -208,6 +217,39 @@ version-là (portail multi-ERP avec gestion de connexions) est un chantier
 à part, avec un tout autre modèle de risque (coffre-fort à secrets, contrôle
 d'accès réseau) — pas construite ici pour l'instant.
 
+## 📊 Power BI — mesures et colonnes calculées DAX
+
+Complète la chaîne base → dbt → Power BI : mesures et colonnes calculées
+DAX du modèle sémantique, avec lignage textuel (`Table[Colonne]` → table
+source, `[Mesure]` → autre mesure du modèle) jusque dans le graphe et le
+texte de la formule (références cliquables). Deux garde-fous best-effort,
+en pastille qualité comme le reste de l'outil (bouton IA "Expliquer
+l'impact" inclus) :
+
+- une mesure qui référence plusieurs tables sans `CALCULATE`/`FILTER`/`ALL`
+  explicite est signalée (risque de contexte de filtre mal maîtrisé) ;
+- une colonne calculée qui référence une autre colonne calculée est
+  signalée (risque de cascade au refresh).
+
+**Contrairement à `extract_filiation.py` et `scan_database.py`, ce script ne
+se connecte pas lui-même à un modèle Power BI** — impossible en Python pur,
+seul le MCP `powerbi-modeling` (Tabular Object Model) sait parler à un
+modèle live, et il n'est accessible que depuis une session Claude Code avec
+le `.pbix` ouvert dans Power BI Desktop :
+
+```bash
+# 1. Ouvrir le .pbix dans Power BI Desktop.
+# 2. Dans une session Claude Code (MCP powerbi-modeling) : ListLocalInstances
+#    + Connect, puis table/measure/column_operations List+Get, écrire le
+#    résultat en JSON — schéma dans scripts/powerbi_export.example.json.
+# 3.
+python scripts/extract_powerbi.py --from-json powerbi_export.json
+```
+
+Toujours additif (contrairement à `scan_database.py` sans `--merge`) : un
+modèle Power BI vient s'ajouter aux nœuds réels déjà présents, il ne les
+remplace jamais.
+
 ## ⚠️ Limites assumées
 
 `index.html` est une page statique : elle ne se connecte pas à une base en
@@ -216,7 +258,15 @@ script après chaque `dbt run`*, pas une synchronisation live — pour ça il
 faudrait une vraie application avec un backend interrogeant la base à chaque
 chargement.
 
-Ce que les scripts d'extraction ne couvrent pas encore (commentaires
-déclarés en base, vues, index, contraintes CHECK, deuxième moteur de base
-testé au-delà de Postgres...) et l'extension du lignage jusqu'aux mesures et
-colonnes calculées Power BI : voir [ROADMAP.md](ROADMAP.md).
+`scripts/extract_powerbi.py` complète la chaîne jusqu'à Power BI (mesures et
+colonnes calculées DAX, liées par lignage textuel aux tables dbt/base
+existantes) mais **ne se connecte pas lui-même** à un modèle Power BI —
+contrairement aux deux autres scripts, il transforme un export JSON produit
+via le MCP `powerbi-modeling`, accessible uniquement depuis une session
+Claude Code avec le `.pbix` ouvert. Voir la section
+[Power BI](#-power-bi--mesures-et-colonnes-calculées-dax) plus bas. Le
+lignage `Table[Colonne]` fonctionne par correspondance de **nom** avec les
+nœuds déjà présents, pas par identité physique garantie — deux systèmes
+différents partageant un nom de table (ex. `dim_date`) sont ambigus, résolus
+arbitrairement (dernier trouvé), comme pour le lignage SQL clickable existant
+en cas de token dupliqué. Reste à faire : voir [ROADMAP.md](ROADMAP.md).

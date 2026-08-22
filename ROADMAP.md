@@ -1,12 +1,14 @@
 # Feuille de route
 
-État au 2026-08-21 (15 commits). Quatre chantiers identifiés pour la
-reprise, dans l'ordre conseillé : 1) durcir le raccordement aux bases
-existant, 2) compléter les informations qu'on en extrait, 3) étendre le
-lignage jusqu'à la couche Power BI (nouveau sous-système, plus gros
-morceau), 4) connecter l'outil au reste de l'écosystème réel — LLM,
-orchestrateur de pipelines, bases multiples (le plus exploratoire, à ne
-démarrer qu'après avoir statué sur la frontière avec le projet partagé).
+État au 2026-08-22 (26 commits). Quatre chantiers identifiés à l'origine :
+1) durcir le raccordement aux bases, 2) compléter les informations qu'on en
+extrait, 3) étendre le lignage jusqu'à la couche Power BI, 4) connecter
+l'outil au reste de l'écosystème réel (LLM, orchestrateur de pipelines,
+bases multiples). **Les quatre sont maintenant substantiellement faits** —
+il ne reste que des points annexes explicitement marqués `[ ]` ci-dessous
+(SQL Server sans instance locale, mesures dupliquées entre plusieurs
+`.pbix`, pipelines n8n reportés faute de workflows réels). Détail par
+chantier ci-dessous, gardé pour la trace de ce qui a été fait et pourquoi.
 
 ## 🔌 1. Raccordement aux bases de données
 
@@ -165,14 +167,13 @@ disponibles via SQLAlchemy/le SGBD ne sont **pas encore** exploitées :
 
 ## 📊 3. Limites de calcul Power BI — mesures, colonnes calculées, indicateurs
 
-Filiation couvre aujourd'hui la chaîne donnée brute → dbt (SQL) et s'arrête
-avant la couche Power BI — alors que le portfolio a déjà deux modèles réels
-([Projet 09](../projet-09-dashboard-powerbi),
+**Fait le 2026-08-22** : Filiation couvrait la chaîne donnée brute → dbt
+(SQL) et s'arrêtait avant la couche Power BI — alors que le portfolio a deux
+modèles réels ([Projet 09](../projet-09-dashboard-powerbi),
 [Projet 13](../projet-13-entrepot-central-bigquery)) construits via le
-**MCP `powerbi-modeling`** déjà installé. C'est la suite naturelle du
-lignage colonne-à-colonne déjà construit (sqlglot) : aujourd'hui il
-s'arrête à la dernière colonne dbt, alors que dans un vrai rapport cette
-colonne alimente encore une mesure DAX avant d'atteindre un visuel.
+**MCP `powerbi-modeling`** déjà installé. `extract_powerbi.py` complète
+maintenant cette chaîne (17 mesures DAX du Projet 13 extraites et reliées) —
+détail dans "À faire" ci-dessous, resté en place pour la trace.
 
 **Ce que "limites de calcul" veut dire concrètement, à documenter et à
 détecter dans l'outil :**
@@ -189,37 +190,98 @@ détecter dans l'outil :**
   filtre — un mauvais choix entre les deux a un impact perf/fraîcheur réel,
   pas seulement stylistique.
 
-**À faire :**
+**Fait le 2026-08-22 :**
 
-- [ ] Nouveau script `extract_powerbi.py` qui interroge le MCP
-      `powerbi-modeling` (`measure_operations`, `column_operations`,
-      `table_operations`, `dax_query_operations`) sur un modèle Power BI
-      ouvert (ex. `Dashboard entrepot.pbix`) pour en extraire mesures et
-      colonnes calculées, avec leur formule DAX brute.
-- [ ] Nœuds `type: "dax-measure"` / `type: "dax-column"` dans le même format
-      que les nœuds existants, avec un badge de couleur dédié pour les
-      distinguer visuellement des types `metric`/`derived`/`raw` déjà en
-      place.
-- [ ] **Lignage DAX → colonnes sources** : parser les références
-      `Table[Colonne]` dans le texte de chaque formule DAX (regex simple,
-      pas un vrai parseur DAX — suffisant pour la majorité des formules)
-      pour relier une mesure à ses colonnes, elles-mêmes déjà reliées via
-      `upstream` (sqlglot) jusqu'à la donnée brute — complète la chaîne
-      bout en bout : base → dbt → Power BI.
-- [ ] Sur la fiche d'une mesure/colonne calculée : afficher explicitement
-      la distinction colonne calculée vs mesure, avec le rappel
-      contexte de ligne/contexte de filtre et coût refresh+stockage vs coût
-      requête — objectif pédagogique, cohérent avec le reste de l'outil
-      (déjà honnête sur les descriptions manquantes, même logique ici).
-- [ ] Détection de motifs à risque, en best-effort sur le texte DAX :
-      colonne calculée qui référence une autre colonne calculée (risque de
-      cascade au refresh), mesure agrégeant plusieurs tables sans
-      `CALCULATE`/`FILTER` (risque de contexte de filtre mal maîtrisé),
-      mesures dupliquées entre plusieurs rapports `.pbix` du portfolio.
-- [ ] Une fois les données DAX disponibles, les faire apparaître dans les
-      4 vues existantes (Fiche / Graphe complet / Dérive / Systèmes) plutôt
-      que créer une 5ᵉ vue séparée — le point fort de l'outil est justement
-      que tout se navigue au même endroit.
+- [x] **`extract_powerbi.py`**, avec une différence d'architecture assumée
+      par rapport aux deux autres scripts : il **ne se connecte pas
+      lui-même** à un modèle Power BI (impossible en Python pur — seul le
+      MCP `powerbi-modeling`, Tabular Object Model via Analysis Services,
+      sait parler à un modèle live, et il n'est accessible que depuis une
+      session Claude Code avec le `.pbix` ouvert). Le script consomme un
+      export JSON (`--from-json`, schéma documenté dans
+      `powerbi_export.example.json`) produit en amont via
+      `connection_operations` (`ListLocalInstances`+`Connect`) puis
+      `table_operations`/`measure_operations`/`column_operations`
+      (`List`+`Get` — `List` ne renvoie pas l'expression DAX, il faut `Get`).
+      Toujours additif (contrairement à `scan_database.py` sans `--merge`) :
+      fusionne systématiquement avec les nœuds réels déjà présents, jamais
+      de remplacement — un modèle Power BI vient s'ajouter à une extraction
+      dbt/base existante, il ne la remplace jamais.
+- [x] Nœuds `type: "dax-measure"` / `type: "dax-column"`, couleur dédiée
+      (`--dax`, un bleu, absent de la palette metric/derived/raw existante)
+      déclinée sur les 5 endroits où les autres types ont une couleur
+      (pastille sidebar, badge, token cliquable, puce colonne-à-colonne,
+      pastille système). `buildSidebar()` et `groupBySystem()` (vue
+      Systèmes) codaient en dur la liste des types (`["metric", "derived",
+      "raw"]` / `type === "raw"`) — étendus, sans quoi `buildSidebar`
+      plantait (`push` sur `undefined`) au premier nœud DAX rencontré.
+- [x] **Lignage DAX → sources, cliquable** : `daxFragment()` (nouvelle
+      fonction JS, même famille que `sqlFragment`/`realSqlFragment`
+      existants) rend cliquable `Table[Colonne]` (→ table dbt/base
+      correspondante, par nom) et `[Mesure]` sans préfixe (→ autre mesure du
+      même modèle) dans le texte affiché de la formule — pas seulement dans
+      `deps` (utilisé par le graphe/l'analyse d'impact). Le lignage
+      colonne-à-colonne sqlglot existant prend le relais en amont : cliquer
+      une table Power BI mène à une fiche dbt qui a déjà ses propres
+      colonnes reliées à la donnée brute. Résolution par **correspondance de
+      nom**, pas une garantie d'identité physique — deux systèmes fusionnés
+      avec une table de même nom (ex. `dim_date`, présent à la fois dans
+      `dbt_ecommerce` et `bv-postgres-dbtdev`) sont ambigus, résolus
+      arbitrairement (dernier trouvé dans l'itération) ; documenté dans le
+      README plutôt que masqué.
+- [x] Carte pédagogique sur la fiche de toute mesure/colonne calculée :
+      distinction explicite contexte de ligne (colonne, stockée, figée au
+      refresh) vs contexte de filtre (mesure, recalculée à la requête,
+      `CALCULATE()` pour en changer). Le texte DAX brut partage le bloc
+      "Détails techniques" déjà utilisé pour le SQL réel — libellé de
+      section conditionnel ("Formule DAX" au lieu de "Définition SQL") via
+      un nouveau `node.sqlKind === "dax"`, réutilise le mécanisme de rendu
+      existant (`sqlFragment` neutralisé sans effet sur du texte DAX,
+      confirmé plutôt que supposé) sans dupliquer la section "Détails
+      techniques".
+- [x] Détection de motifs à risque, réutilisant le mécanisme `quality`
+      existant (pastilles ok/warn + bouton IA "Expliquer l'impact" déjà
+      construit au chantier 4 — aucun code neuf nécessaire pour ça) :
+      mesure référençant plusieurs tables sans `CALCULATE`/`CALCULATETABLE`/
+      `FILTER`/`ALL`/`ALLEXCEPT`/`ALLSELECTED`/`REMOVEFILTERS` (regex sur
+      les noms de fonction) ; colonne calculée référençant une autre colonne
+      calculée. Sur le modèle réel testé (17 mesures, 0 colonne calculée),
+      aucune n'est signalée risquée — modèle compétemment construit, pas un
+      artefact du détecteur (vérifié séparément avec un cas volontairement
+      risqué dans `test_extract_powerbi.py`).
+- [x] Intégré dans les 4 vues existantes, pas de 5ᵉ vue : les nœuds DAX sont
+      des `realNodes` comme les autres, donc Graphe complet/Dérive/Systèmes
+      les héritent sans code spécifique — seule la vue Systèmes a demandé un
+      changement explicite (`type === "raw"` élargi) puisqu'elle filtrait
+      par type. Rôle **PDG** étendu (`canSeeNode`) pour voir les mesures DAX
+      en plus des `metric` — c'était le sens de la remarque déjà notée
+      "PDG vide sur le jeu réel, ce projet dbt n'a pas encore de couche
+      KPI" : les mesures Power BI comblent exactement ce vide.
+
+**Vérifié** : `scripts/test_extract_powerbi.py` (parsing DAX, détection de
+risque, construction de nœuds — sans modèle live, `test_scan_database.py` du
+chantier 2 avait établi ce pattern). Rendu HTML vérifié en jsdom (badge,
+carte pédagogique, libellé "Formule DAX", références cliquables — y compris
+un clic réel qui navigue vers `fct_sales` —, PDG voit les mesures, carte
+Power BI dans la vue Systèmes, pas de régression sur Graphe complet).
+**Exécuté pour de vrai** contre `Dashboard entrepot.pbix` (Projet 13, Power
+BI Desktop ouvert et fermé dans la foulée) : 17 mesures extraites avec leur
+vraie formule DAX, lignage résolu correctement y compris mesure-à-mesure
+(`Panier moyen` → `CA` + `Nb commandes`) et mesure-à-table à travers
+plusieurs niveaux de `TOTALYTD`/`SAMEPERIODLASTYEAR`/`CALCULATE` ; 0 colonne
+calculée (confirmé via `columnType` sur les 30 colonnes du modèle — les 17
+mesures portent toute la logique, aucune colonne DAX). Fusionné dans
+`index.html` (56 nœuds réels au total). ROADMAP chantier 3 quasi bouclé.
+
+**Reste ouvert :**
+
+- [ ] **Mesures dupliquées entre plusieurs rapports `.pbix`** — nécessite de
+      corréler au moins deux modèles Power BI du portfolio (ex. Projet 09 et
+      Projet 13 partagent déjà 17 mesures identiques, hérité du même socle).
+      Pas encore attaqué : demande d'ouvrir/interroger deux modèles dans la
+      même session (deux instances Power BI Desktop simultanées) et un
+      export JSON par modèle, `extract_powerbi.py` ne gère aujourd'hui qu'un
+      seul export à la fois.
 
 ## 🔗 4. Connexion à l'écosystème réel (LLM, pipelines, bases multiples)
 

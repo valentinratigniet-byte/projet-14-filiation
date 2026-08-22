@@ -1,3 +1,5 @@
 __pycache__/
 *.pyc
 connections.yml
+powerbi_export*.json
+!powerbi_export.example.json
