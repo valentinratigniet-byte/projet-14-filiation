@@ -198,6 +198,81 @@
 
   .sidebar-search::placeholder { color: var(--text-muted); }
 
+  .quick-switcher-btn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 0.82rem;
+    padding: 0.5rem 0.7rem;
+    background: var(--surface);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    width: 100%;
+    cursor: pointer;
+  }
+  .quick-switcher-btn:hover { color: var(--text); border-color: var(--accent); }
+  .quick-switcher-btn kbd {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.68rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.05rem 0.4rem;
+  }
+
+  .qs-overlay:not([hidden]) {
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 14, 12, 0.45);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 12vh;
+    z-index: 50;
+  }
+
+  .qs-panel {
+    width: min(600px, 90vw);
+    max-height: 70vh;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .qs-input {
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 0.95rem;
+    padding: 0.9rem 1.1rem;
+    border: none;
+    border-bottom: 1px solid var(--border);
+    background: none;
+    color: var(--text);
+    width: 100%;
+  }
+  .qs-input:focus { outline: none; }
+  .qs-input::placeholder { color: var(--text-muted); }
+
+  .qs-results { list-style: none; margin: 0; padding: 0.4rem; overflow-y: auto; }
+
+  .qs-result {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.55rem 0.7rem;
+    border-radius: 7px;
+    cursor: pointer;
+  }
+  .qs-result.is-active { background: var(--accent-soft); }
+  .qs-result-name { flex: 1; font-size: 0.9rem; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .qs-result-meta { font-family: "IBM Plex Mono", monospace; font-size: 0.68rem; color: var(--text-muted); flex-shrink: 0; }
+
+  .qs-empty { margin: 0; padding: 1.5rem; text-align: center; color: var(--text-muted); font-size: 0.85rem; }
+
   .sidebar-groups { display: flex; flex-direction: row; gap: 1.1rem; overflow-x: auto; padding-bottom: 0.15rem; }
   .sidebar-group { display: flex; flex-direction: row; align-items: center; gap: 0.3rem; flex-shrink: 0; }
   .sidebar-group-title { display: none; }
@@ -1071,9 +1146,21 @@
       <select id="role-select" aria-label="Rôle courant"></select>
     </label>
     <p class="role-note" id="role-note"></p>
-    <input class="sidebar-search" id="sidebar-search" type="search" placeholder="Filtrer…" aria-label="Filtrer les éléments">
+    <button type="button" class="quick-switcher-btn" id="quick-switcher-btn">
+      <span>🔍 Recherche globale…</span>
+      <kbd>/</kbd>
+    </button>
+    <input class="sidebar-search" id="sidebar-search" type="search" placeholder="Filtrer dans la liste…" aria-label="Filtrer les éléments affichés">
     <div class="sidebar-groups" id="sidebar-groups"></div>
   </aside>
+
+  <div class="qs-overlay" id="qs-overlay" hidden>
+    <div class="qs-panel" role="dialog" aria-modal="true" aria-label="Recherche globale">
+      <input type="text" id="qs-input" class="qs-input" placeholder="Rechercher un élément, tous domaines et systèmes confondus…" autocomplete="off">
+      <ul class="qs-results" id="qs-results"></ul>
+      <p class="qs-empty" id="qs-empty" hidden>Aucun résultat.</p>
+    </div>
+  </div>
 
   <main class="content">
     <div class="view-switch" role="tablist" aria-label="Vue">
@@ -32528,6 +32615,114 @@
     for (const id in sidebarButtons) {
       const btn = sidebarButtons[id];
       btn.closest("li").style.display = btn.dataset.name.includes(q) ? "" : "none";
+    }
+  });
+
+  // ---------- Recherche globale (quick switcher) ----------
+  // Distincte du filtre "Filtrer…" ci-dessus (qui montre/masque des éléments
+  // déjà groupés par domaine, sans changer la fiche affichée) : ceci ouvre
+  // une fenêtre superposée, cherche parmi TOUS les nœuds accessibles quel
+  // que soit le domaine/type, et navigue directement au résultat choisi.
+
+  let qsResults = [];
+  let qsActiveIndex = -1;
+
+  function qsAllSearchableNodes() {
+    return Object.keys(nodes)
+      .filter((id) => canSeeNode(id))
+      .map((id) => ({ id, name: nodes[id].name, domain: nodes[id].domain, type: nodes[id].type, system: shortSystem(nodes[id].source) }));
+  }
+
+  function qsScore(nameLower, q) {
+    if (nameLower === q) return 3;
+    if (nameLower.startsWith(q)) return 2;
+    if (nameLower.includes(q)) return 1;
+    return 0;
+  }
+
+  function renderQsResults(query) {
+    const all = qsAllSearchableNodes();
+    const q = query.trim().toLowerCase();
+    const matches = q
+      ? all.map((n) => ({ ...n, score: qsScore(n.name.toLowerCase(), q) }))
+          .filter((n) => n.score > 0)
+          .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
+          .slice(0, 30)
+      : all.slice(0, 30); // sans recherche : aperçu plutôt qu'une liste vide
+
+    qsResults = matches;
+    qsActiveIndex = matches.length ? 0 : -1;
+
+    const list = document.getElementById("qs-results");
+    const empty = document.getElementById("qs-empty");
+    list.innerHTML = "";
+    empty.hidden = matches.length > 0;
+    matches.forEach((n, i) => {
+      const li = document.createElement("li");
+      li.className = "qs-result" + (i === qsActiveIndex ? " is-active" : "");
+      const dot = document.createElement("span");
+      dot.className = "sidebar-dot type-" + n.type;
+      const name = document.createElement("span");
+      name.className = "qs-result-name";
+      name.textContent = n.name;
+      const meta = document.createElement("span");
+      meta.className = "qs-result-meta";
+      meta.textContent = [n.domain, n.system].filter(Boolean).join(" · ");
+      li.append(dot, name, meta);
+      li.addEventListener("mouseenter", () => { qsActiveIndex = i; qsHighlight(); });
+      li.addEventListener("click", () => qsSelect(i));
+      list.appendChild(li);
+    });
+  }
+
+  function qsHighlight() {
+    document.querySelectorAll(".qs-result").forEach((el, i) => el.classList.toggle("is-active", i === qsActiveIndex));
+    const active = document.querySelector(".qs-result.is-active");
+    if (active) active.scrollIntoView({ block: "nearest" });
+  }
+
+  function qsSelect(i) {
+    const n = qsResults[i];
+    if (!n) return;
+    closeQuickSwitcher();
+    navigateTo(n.id);
+  }
+
+  function openQuickSwitcher() {
+    const overlay = document.getElementById("qs-overlay");
+    overlay.hidden = false;
+    const input = document.getElementById("qs-input");
+    input.value = "";
+    renderQsResults("");
+    input.focus();
+  }
+
+  function closeQuickSwitcher() {
+    document.getElementById("qs-overlay").hidden = true;
+    document.getElementById("qs-input").blur();
+  }
+
+  document.getElementById("quick-switcher-btn").addEventListener("click", openQuickSwitcher);
+  document.getElementById("qs-overlay").addEventListener("click", (e) => {
+    if (e.target.id === "qs-overlay") closeQuickSwitcher();
+  });
+  document.getElementById("qs-input").addEventListener("input", (e) => renderQsResults(e.target.value));
+  document.getElementById("qs-input").addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown") { e.preventDefault(); qsActiveIndex = Math.min(qsActiveIndex + 1, qsResults.length - 1); qsHighlight(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); qsActiveIndex = Math.max(qsActiveIndex - 1, 0); qsHighlight(); }
+    else if (e.key === "Enter") { e.preventDefault(); qsSelect(qsActiveIndex); }
+    else if (e.key === "Escape") { e.preventDefault(); closeQuickSwitcher(); }
+  });
+
+  document.addEventListener("keydown", (e) => {
+    const overlay = document.getElementById("qs-overlay");
+    if (e.key === "/" && overlay.hidden) {
+      const active = document.activeElement;
+      const tag = (active && active.tagName || "").toLowerCase();
+      const isTyping = tag === "input" || tag === "textarea" || tag === "select" || (active && active.isContentEditable);
+      if (!isTyping) { e.preventDefault(); openQuickSwitcher(); }
+    } else if (e.key === "Escape" && !overlay.hidden) {
+      closeQuickSwitcher();
     }
   });
 
