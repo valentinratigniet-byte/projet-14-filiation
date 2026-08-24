@@ -551,6 +551,23 @@
 
   .derive-row code { font-family: "IBM Plex Mono", monospace; font-size: 0.85rem; }
 
+  .fiche-nav-row { display: flex; align-items: center; gap: 0.7rem; }
+
+  .nav-history-controls { display: flex; gap: 0.25rem; flex-shrink: 0; margin-bottom: 1.5rem; }
+  .nav-history-controls button {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.85rem;
+    width: 1.8rem;
+    height: 1.8rem;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-muted);
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .nav-history-controls button:hover:not(:disabled) { color: var(--text); border-color: var(--accent); }
+  .nav-history-controls button:disabled { opacity: 0.35; cursor: default; }
+
   .breadcrumb {
     display: flex;
     flex-wrap: wrap;
@@ -1059,7 +1076,13 @@
     </div>
 
     <div id="fiche-view">
-      <nav class="breadcrumb" id="breadcrumb" aria-label="Fil d'Ariane"></nav>
+      <div class="fiche-nav-row">
+        <div class="nav-history-controls">
+          <button type="button" id="nav-back" aria-label="Précédent" title="Précédent" disabled>←</button>
+          <button type="button" id="nav-forward" aria-label="Suivant" title="Suivant" disabled>→</button>
+        </div>
+        <nav class="breadcrumb" id="breadcrumb" aria-label="Fil d'Ariane"></nav>
+      </div>
       <div id="inspector"></div>
     </div>
 
@@ -32474,7 +32497,7 @@
             sysTag.title = ds[id].source.system;
             btn.appendChild(sysTag);
           }
-          btn.addEventListener("click", () => { switchView("fiche"); history = [id]; render(); });
+          btn.addEventListener("click", () => navigateTo(id));
           sidebarButtons[id] = btn;
           li.appendChild(btn);
           list.appendChild(li);
@@ -32507,6 +32530,7 @@
       const preferredRoot = DATASET_ROOT[key];
       const root = (nodes[preferredRoot] && ROLES[currentRole].canSeeNode(nodes[preferredRoot])) ? preferredRoot : firstVisibleId(nodes);
       history = root ? [root] : [];
+      navPast = []; navFuture = []; updateNavButtons();
       graphFocusId = null;
       refreshCurrentView();
     });
@@ -32543,6 +32567,7 @@
     applyRoleTabVisibility();
     const root = firstVisibleId(nodes);
     history = root ? [root] : [];
+    navPast = []; navFuture = []; updateNavButtons();
     graphFocusId = null;
     refreshCurrentView();
   });
@@ -32551,8 +32576,59 @@
 
   let history = ["margin_pct"];
 
+  // Pile précédent/suivant façon navigateur — distincte de `history` ci-dessus,
+  // qui sert le fil d'Ariane (chemin de descente, tronqué en cliquant un
+  // ancêtre) et non un historique de déplacements. pushNavHistory() est
+  // appelée à chaque changement de nœud affiché, quel que soit le chemin
+  // (sidebar, graphe, référence cliquée en fiche, alerte qualité...).
+  let navPast = [], navFuture = [];
+
+  function pushNavHistory() {
+    const current = history[history.length - 1];
+    if (current && current !== navPast[navPast.length - 1]) {
+      navPast.push(current);
+      if (navPast.length > 50) navPast.shift();
+    }
+    navFuture = [];
+    updateNavButtons();
+  }
+
+  function updateNavButtons() {
+    const back = document.getElementById("nav-back");
+    const fwd = document.getElementById("nav-forward");
+    if (back) back.disabled = navPast.length === 0;
+    if (fwd) fwd.disabled = navFuture.length === 0;
+  }
+
+  function navigateTo(id) {
+    pushNavHistory();
+    switchView("fiche");
+    history = [id];
+    render();
+  }
+
+  document.getElementById("nav-back").addEventListener("click", () => {
+    if (!navPast.length) return;
+    navFuture.push(history[history.length - 1]);
+    const prev = navPast.pop();
+    switchView("fiche");
+    history = [prev];
+    render();
+    updateNavButtons();
+  });
+  document.getElementById("nav-forward").addEventListener("click", () => {
+    if (!navFuture.length) return;
+    navPast.push(history[history.length - 1]);
+    const next = navFuture.pop();
+    switchView("fiche");
+    history = [next];
+    render();
+    updateNavButtons();
+  });
+
   function navigate(id, { fromCrumb = false } = {}) {
     if (!fromCrumb && !canSeeNode(id)) return;
+    pushNavHistory();
     if (fromCrumb) {
       const idx = history.indexOf(id);
       history = history.slice(0, idx + 1);
@@ -32615,7 +32691,10 @@
     for (const part of parts) {
       if (part === undefined || part === "") continue;
       const depId = tokenToNode[part];
-      if (depId) {
+      // tokenToNode n'est construit qu'à partir de demoNodes ; sur le jeu réel, un mot
+      // du SQL peut coïncider avec un token démo sans que l'id résolu existe dans le
+      // jeu de données actif (nodes) — vérifier avant de traiter comme un lien valide.
+      if (depId && nodes[depId]) {
         const btn = document.createElement("button");
         btn.className = "token type-" + nodes[depId].type;
         btn.textContent = part;
@@ -33404,7 +33483,7 @@
     const btn = document.createElement("button");
     btn.type = "button";
     btn.textContent = "Voir la fiche →";
-    btn.addEventListener("click", () => { switchView("fiche"); history = [graphFocusId]; render(); });
+    btn.addEventListener("click", () => navigateTo(graphFocusId));
     infobar.append(label, btn);
   }
 
@@ -33707,7 +33786,7 @@
       });
       text.textContent = nodes[id].short;
       g.append(rect, text);
-      const go = () => { switchView("fiche"); history = [id]; render(); };
+      const go = () => navigateTo(id);
       g.addEventListener("click", go);
       g.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
       svg.appendChild(g);
@@ -33770,7 +33849,7 @@
         strong.textContent = issue.name;
         text.append(strong, document.createTextNode(" — " + issue.label + (issue.note ? " (" + issue.note + ")" : "")));
         row.append(dot, text);
-        row.addEventListener("click", () => { switchView("fiche"); history = [issue.id]; render(); });
+        row.addEventListener("click", () => navigateTo(issue.id));
         list.appendChild(row);
       });
       card.appendChild(list);
@@ -33825,7 +33904,7 @@
         dot.className = "chip-dot type-" + nodes[id].type;
         const rc = typeof nodes[id].rowCount === "number" ? " (" + nodes[id].rowCount.toLocaleString("fr-FR") + ")" : "";
         chip.append(dot, document.createTextNode(nodes[id].name + rc));
-        chip.addEventListener("click", () => { switchView("fiche"); history = [id]; render(); });
+        chip.addEventListener("click", () => navigateTo(id));
         chips.appendChild(chip);
       });
       card.appendChild(chips);
