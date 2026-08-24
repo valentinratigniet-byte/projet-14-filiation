@@ -301,6 +301,20 @@
 
   .zoom-controls { display: flex; gap: 0.3rem; }
 
+  .graph-hint {
+    margin: 0.5rem 0 0;
+    font-size: 0.76rem;
+    color: var(--text-muted);
+  }
+  .graph-hint kbd {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.05rem 0.35rem;
+    background: var(--surface);
+  }
+
   .zoom-controls button {
     font-family: "IBM Plex Mono", monospace;
     font-size: 0.78rem;
@@ -1028,6 +1042,7 @@
           <button type="button" id="zoom-in" aria-label="Zoom avant">+</button>
         </div>
       </div>
+      <p class="graph-hint">Glisser pour déplacer · molette pour déplacer, <kbd>Ctrl</kbd>+molette pour zoomer · double-clic pour zoomer sur un point</p>
       <div class="graph-domain-filter" id="graph-domain-filter"></div>
       <div class="graph-canvas" id="graph-canvas"></div>
       <div class="graph-infobar" id="graph-infobar"></div>
@@ -33124,6 +33139,50 @@
     if (resetBtn) resetBtn.textContent = Math.round(zoomScale * 100) + "%";
   }
 
+  // Point écran (clientX/clientY) -> point dans l'espace utilisateur du SVG
+  // (celui du viewBox, où opèrent panX/panY/zoomScale). Le viewBox est mis à
+  // l'échelle "meet" (préserve le ratio, letterboxing) pour remplir le
+  // canevas — sans cette conversion, un pixel écran ne vaut PAS une unité
+  // SVG (souvent 2 à 3× plus petit) : glisser la souris de 100px ne déplaçait
+  // le graphe que d'une trentaine de pixels, une des causes du zoom "rigide".
+  // Aussi utilisé pour ancrer le zoom sur le curseur plutôt qu'un coin fixe.
+  function svgPointFromClient(svg, clientX, clientY) {
+    if (svg && typeof svg.createSVGPoint === "function" && typeof svg.getScreenCTM === "function") {
+      const ctm = svg.getScreenCTM();
+      if (ctm) {
+        const pt = svg.createSVGPoint();
+        pt.x = clientX; pt.y = clientY;
+        const p = pt.matrixTransform(ctm.inverse());
+        return { x: p.x, y: p.y, scale: ctm.a || 1 };
+      }
+    }
+    // Repli si getScreenCTM est indisponible (jsdom, ou avant mise en page réelle).
+    if (!svg) return null;
+    const rect = svg.getBoundingClientRect();
+    const vb = svg.viewBox && svg.viewBox.baseVal;
+    if (!rect.width || !rect.height || !vb || !vb.width || !vb.height) return null;
+    const scale = Math.min(rect.width / vb.width, rect.height / vb.height);
+    const offsetX = (rect.width - vb.width * scale) / 2;
+    const offsetY = (rect.height - vb.height * scale) / 2;
+    return { x: (clientX - rect.left - offsetX) / scale, y: (clientY - rect.top - offsetY) / scale, scale };
+  }
+
+  // Zoome vers newZoomScale en gardant fixe le point du graphe actuellement
+  // sous (clientX, clientY) — au lieu de tout faire fuir depuis un coin,
+  // comme un vrai outil de carte/diagramme (Figma, Google Maps...).
+  function zoomAt(clientX, clientY, newZoomScale) {
+    newZoomScale = Math.min(2.5, Math.max(0.35, newZoomScale));
+    const svg = document.querySelector("#graph-canvas svg");
+    const pt = svgPointFromClient(svg, clientX, clientY);
+    if (pt) {
+      const ratio = newZoomScale / zoomScale;
+      panX = pt.x * (1 - ratio) + panX * ratio;
+      panY = pt.y * (1 - ratio) + panY * ratio;
+    }
+    zoomScale = newZoomScale;
+    applyGraphTransform();
+  }
+
   function renderGraphView() {
     const canvas = document.getElementById("graph-canvas");
     canvas.innerHTML = "";
@@ -33290,30 +33349,69 @@
 
   const graphCanvas = document.getElementById("graph-canvas");
 
+  // Convention diagramme/carte : molette seule = déplacer (comme un scroll
+  // deux-doigts trackpad, qui émet des wheel events indiscernables d'une
+  // molette) ; Ctrl/Cmd+molette (émis nativement par un pincement trackpad)
+  // = zoomer, ancré sur le curseur. Avant ce commit, TOUT wheel event
+  // zoomait — un scroll deux-doigts normal faisait donc zoomer au lieu de
+  // déplacer, la friction la plus citée par un utilisateur trackpad.
   graphCanvas.addEventListener("wheel", (e) => {
     e.preventDefault();
-    const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
-    zoomScale = Math.min(2.5, Math.max(0.35, zoomScale * factor));
-    applyGraphTransform();
+    if (e.ctrlKey || e.metaKey) {
+      const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+      zoomAt(e.clientX, e.clientY, zoomScale * factor);
+    } else {
+      const svg = graphCanvas.querySelector("svg");
+      const info = svgPointFromClient(svg, e.clientX, e.clientY);
+      const scale = info ? info.scale : 1;
+      panX -= e.deltaX / scale;
+      panY -= e.deltaY / scale;
+      applyGraphTransform();
+    }
   }, { passive: false });
+
+  graphCanvas.addEventListener("dblclick", (e) => {
+    if (e.target.closest(".graph-node")) return;
+    zoomAt(e.clientX, e.clientY, zoomScale * 1.5);
+  });
 
   let isPanning = false, panStart = null;
   graphCanvas.addEventListener("mousedown", (e) => {
     if (e.target.closest(".graph-node")) return;
     isPanning = true;
-    panStart = { x: e.clientX - panX, y: e.clientY - panY };
+    const svg = graphCanvas.querySelector("svg");
+    const pt = svgPointFromClient(svg, e.clientX, e.clientY);
+    panStart = pt ? { x: pt.x - panX, y: pt.y - panY, useSvg: true } : { x: e.clientX - panX, y: e.clientY - panY, useSvg: false };
     graphCanvas.classList.add("is-panning");
   });
   window.addEventListener("mousemove", (e) => {
     if (!isPanning) return;
-    panX = e.clientX - panStart.x;
-    panY = e.clientY - panStart.y;
+    if (panStart.useSvg) {
+      const svg = graphCanvas.querySelector("svg");
+      const pt = svgPointFromClient(svg, e.clientX, e.clientY);
+      if (pt) { panX = pt.x - panStart.x; panY = pt.y - panStart.y; }
+    } else {
+      panX = e.clientX - panStart.x;
+      panY = e.clientY - panStart.y;
+    }
     applyGraphTransform();
   });
   window.addEventListener("mouseup", () => { isPanning = false; graphCanvas.classList.remove("is-panning"); });
 
-  document.getElementById("zoom-in").addEventListener("click", () => { zoomScale = Math.min(2.5, zoomScale * 1.2); applyGraphTransform(); });
-  document.getElementById("zoom-out").addEventListener("click", () => { zoomScale = Math.max(0.35, zoomScale / 1.2); applyGraphTransform(); });
+  // Boutons +/- : zoomer vers le centre du canevas plutôt que vers un coin
+  // fixe — même logique d'ancrage que la molette, juste sans curseur à suivre.
+  function zoomButtonCenter() {
+    const rect = graphCanvas.getBoundingClientRect();
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  }
+  document.getElementById("zoom-in").addEventListener("click", () => {
+    const c = zoomButtonCenter();
+    zoomAt(c.x, c.y, zoomScale * 1.2);
+  });
+  document.getElementById("zoom-out").addEventListener("click", () => {
+    const c = zoomButtonCenter();
+    zoomAt(c.x, c.y, zoomScale / 1.2);
+  });
   document.getElementById("zoom-reset").addEventListener("click", () => { zoomScale = 1; panX = 0; panY = 0; applyGraphTransform(); });
 
   // ---------- Vue Dérive (diff entre deux instantanés du projet réel) ----------
