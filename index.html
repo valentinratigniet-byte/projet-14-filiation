@@ -229,6 +229,20 @@
     box-shadow: inset 2px 0 0 var(--accent);
   }
 
+  .sidebar-system {
+    margin-left: auto;
+    padding-left: 0.4rem;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.62rem;
+    color: var(--text-muted);
+    opacity: 0.75;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 7rem;
+    flex-shrink: 1;
+  }
+
   .sidebar-dot { width: 0.45rem; height: 0.45rem; border-radius: 50%; flex-shrink: 0; }
   .sidebar-dot.type-metric { background: var(--metric); }
   .sidebar-dot.type-derived { background: var(--derived); }
@@ -382,6 +396,26 @@
 
   .system-tables { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem; }
   .system-tables .chip { background: var(--surface-alt); padding: 0.4rem 0.65rem; margin: 0; }
+
+  .quality-overview-list { display: flex; flex-direction: column; gap: 0.3rem; }
+  .quality-overview-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.55rem;
+    width: 100%;
+    font: inherit;
+    text-align: left;
+    background: var(--surface-alt);
+    border: none;
+    border-radius: 6px;
+    padding: 0.5rem 0.7rem;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .quality-overview-row:hover { background: var(--accent-soft); }
+  .quality-overview-row .quality-dot { flex-shrink: 0; transform: translateY(-1px); }
+  .quality-overview-text { font-size: 0.85rem; color: var(--text-muted); }
+  .quality-overview-text strong { color: var(--text); font-weight: 600; }
   .system-tables .chip:hover { background: var(--surface); border: 1px solid var(--accent); }
 
   .derive-toolbar {
@@ -430,6 +464,20 @@
   }
 
   .derive-summary { font-size: 0.9rem; color: var(--text-muted); margin: 0 0 1.5rem; }
+
+  .ollama-status {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    margin: 0 0 1rem;
+  }
+  .ollama-status.is-down { color: var(--fail); }
+  .ollama-status.is-ok { display: none; }
+
+  /* Grisées tant que bv-ollama n'a pas répondu au premier essai — le clic
+     reste possible (le check peut être faux si Ollama vient de démarrer),
+     juste un signal visuel plutôt qu'une erreur découverte après coup. */
+  .ollama-down .quality-explain-btn { opacity: 0.5; }
   .derive-summary strong { color: var(--text); }
 
   .derive-section { margin-bottom: 1.75rem; }
@@ -1009,6 +1057,7 @@
         </label>
       </div>
       <p class="derive-note">🤖 Assistant IA local (bv-ollama, llama3.2:3b) — répond uniquement à partir de la fiche de l'élément choisi et de son voisinage direct (ce dont il dépend, ce qui en dépend), jamais de tout le graphe. Réponse non vérifiée, à recouper avec la fiche.</p>
+      <p class="ollama-status" id="ollama-status">Vérification de bv-ollama…</p>
       <form id="assistant-form" class="assistant-form">
         <textarea id="assistant-question" rows="2" placeholder="Ex. : d'où vient cette donnée ? Pourquoi ce contrôle qualité peut-il échouer ?"></textarea>
         <button type="submit" id="assistant-ask">Demander</button>
@@ -1030,6 +1079,17 @@
   // résoudre vers le nom d'une variable --<colorType>/--<colorType>-soft.
   function colorType(type) {
     return type.startsWith("dax-") ? "dax" : type;
+  }
+
+  // Nom court d'un système source pour la barre latérale — "Power BI —
+  // Dashboard entrepot" -> "Dashboard entrepot". Plusieurs systèmes fusionnés
+  // peuvent partager le même domaine/nom d'élément (les 2 modèles Power BI
+  // ont chacun une mesure "CA" dans un dossier "1. Base" quasi identique) ;
+  // sans ce repère, rien dans la liste ne dit lequel on regarde avant de cliquer.
+  function shortSystem(source) {
+    if (!source || !source.system) return null;
+    const i = source.system.indexOf("—");
+    return i === -1 ? source.system : source.system.slice(i + 1).trim();
   }
 
   const demoNodes = {
@@ -32348,6 +32408,14 @@
           const dot = document.createElement("span");
           dot.className = "sidebar-dot type-" + type;
           btn.append(dot, document.createTextNode(ds[id].name));
+          const sys = shortSystem(ds[id].source);
+          if (sys) {
+            const sysTag = document.createElement("span");
+            sysTag.className = "sidebar-system";
+            sysTag.textContent = sys;
+            sysTag.title = ds[id].source.system;
+            btn.appendChild(sysTag);
+          }
           btn.addEventListener("click", () => { switchView("fiche"); history = [id]; render(); });
           sidebarButtons[id] = btn;
           li.appendChild(btn);
@@ -32382,7 +32450,7 @@
       const root = (nodes[preferredRoot] && ROLES[currentRole].canSeeNode(nodes[preferredRoot])) ? preferredRoot : firstVisibleId(nodes);
       history = root ? [root] : [];
       graphFocusId = null;
-      if (currentView === "graphe") renderGraphView(); else render();
+      refreshCurrentView();
     });
   });
 
@@ -32418,10 +32486,7 @@
     const root = firstVisibleId(nodes);
     history = root ? [root] : [];
     graphFocusId = null;
-    if (currentView === "graphe") renderGraphView();
-    else if (currentView === "derive") populateDeriveSelects();
-    else if (currentView === "systemes") renderSystemsView();
-    else render();
+    refreshCurrentView();
   });
 
   // ---------- Navigation ----------
@@ -32994,6 +33059,18 @@
     if (view === "assistant") populateAssistantSelect();
   }
 
+  // Rafraîchit la vue actuellement affichée après un changement qui touche
+  // au jeu de nœuds (changement de jeu de données, changement de rôle) — sans
+  // ça, rester sur Systèmes/Dérive/Assistant en changeant de jeu de données
+  // laissait l'ancien contenu affiché malgré le bouton actif à jour.
+  function refreshCurrentView() {
+    if (currentView === "graphe") renderGraphView();
+    else if (currentView === "derive") populateDeriveSelects();
+    else if (currentView === "systemes") renderSystemsView();
+    else if (currentView === "assistant") populateAssistantSelect();
+    else render();
+  }
+
   // Niveau = plus long chemin depuis une source (sans dépendance) — place les
   // sources à gauche et les nœuds dérivés à droite, colonne par colonne.
   function computeLayers(ds) {
@@ -33471,9 +33548,73 @@
     return { svg, hasEdges };
   }
 
+  // Toutes les pastilles qualité non-ok, tous nœuds confondus (métriques/
+  // calculs ET tests par colonne du jeu réel) — sans ça, la seule façon de
+  // les découvrir est de cliquer les nœuds un par un.
+  function collectQualityIssues() {
+    const issues = [];
+    for (const id in nodes) {
+      if (!canSeeNode(id)) continue;
+      const n = nodes[id];
+      for (const q of n.quality || []) {
+        if (q.status !== "ok") issues.push({ id, name: n.name, label: q.label, status: q.status, note: q.note });
+      }
+      for (const col of n.columns || []) {
+        for (const t of col.tests || []) {
+          if (t.status !== "ok") issues.push({ id, name: n.name + "." + col.name, label: t.label, status: t.status, note: t.note });
+        }
+      }
+    }
+    issues.sort((a, b) => (a.status === b.status ? 0 : a.status === "fail" ? -1 : 1));
+    return issues;
+  }
+
+  function renderQualityOverview() {
+    const issues = collectQualityIssues();
+    const card = document.createElement("div");
+    card.className = "system-card quality-overview";
+    const title = document.createElement("h3");
+    title.className = "system-title";
+    title.textContent = "Alertes qualité";
+    card.appendChild(title);
+
+    const nFail = issues.filter((i) => i.status === "fail").length;
+    const nWarn = issues.filter((i) => i.status === "warn").length;
+    const meta = document.createElement("p");
+    meta.className = "system-meta";
+    meta.textContent = issues.length
+      ? [nFail && nFail + " échec(s)", nWarn && nWarn + " avertissement(s)"].filter(Boolean).join(" · ")
+      : "Aucune alerte sur ce jeu de données.";
+    card.appendChild(meta);
+
+    if (issues.length) {
+      const list = document.createElement("div");
+      list.className = "quality-overview-list";
+      issues.forEach((issue) => {
+        const row = document.createElement("button");
+        row.type = "button";
+        row.className = "quality-overview-row";
+        const dot = document.createElement("span");
+        dot.className = "quality-dot status-" + issue.status;
+        const text = document.createElement("span");
+        text.className = "quality-overview-text";
+        const strong = document.createElement("strong");
+        strong.textContent = issue.name;
+        text.append(strong, document.createTextNode(" — " + issue.label + (issue.note ? " (" + issue.note + ")" : "")));
+        row.append(dot, text);
+        row.addEventListener("click", () => { switchView("fiche"); history = [issue.id]; render(); });
+        list.appendChild(row);
+      });
+      card.appendChild(list);
+    }
+    return card;
+  }
+
   function renderSystemsView() {
     const container = document.getElementById("systems-container");
     container.innerHTML = "";
+    container.appendChild(renderQualityOverview());
+
     const groups = groupBySystem();
     const systemNames = Object.keys(groups).sort();
 
@@ -33557,6 +33698,32 @@
 
   const OLLAMA_URL = "http://localhost:11434/api/generate";
   const OLLAMA_MODEL = "llama3.2:3b";
+
+  // Vérifié une fois au chargement plutôt que découvert au clic — signal
+  // passif (bouton grisé, statut affiché), jamais bloquant : le check peut
+  // être faux si bv-ollama vient tout juste de démarrer, donc le clic reste
+  // toujours possible et retente pour de vrai.
+  (async () => {
+    const statusEl = document.getElementById("ollama-status");
+    let reachable = false;
+    try {
+      const ctrl = new AbortController();
+      const timeout = setTimeout(() => ctrl.abort(), 1500);
+      const res = await fetch("http://localhost:11434/api/tags", { signal: ctrl.signal });
+      clearTimeout(timeout);
+      reachable = res.ok;
+    } catch {
+      reachable = false;
+    }
+    if (reachable) {
+      statusEl.className = "ollama-status is-ok";
+      statusEl.textContent = "🟢 bv-ollama disponible.";
+    } else {
+      document.body.classList.add("ollama-down");
+      statusEl.className = "ollama-status is-down";
+      statusEl.textContent = "🔴 bv-ollama injoignable depuis cette page — soit le conteneur n'est pas démarré, soit cette page est ouverte comme fichier local (file://), bloqué par la politique CORS d'Ollama. Essayer de la servir localement (ex. python -m http.server, puis ouvrir http://localhost:PORT/index.html) plutôt que de double-cliquer le fichier. Les boutons \"Expliquer l'impact\" grisés ailleurs sur la page restent cliquables, au cas où le check se trompe.";
+    }
+  })();
 
   function nodeSummary(id) {
     const n = nodes[id];
