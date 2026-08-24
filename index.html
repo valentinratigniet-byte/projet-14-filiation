@@ -34112,6 +34112,7 @@
   });
 
   function render() {
+    saveState();
     const id = history[history.length - 1];
     const inspector = document.getElementById("inspector");
 
@@ -34326,6 +34327,52 @@
 
     root.appendChild(relGrid);
   }
+
+  // ---------- Persistance (rôle, jeu de données, dernier nœud) ----------
+
+  const STATE_KEY = "filiation-state-v1";
+
+  function saveState() {
+    try {
+      localStorage.setItem(STATE_KEY, JSON.stringify({
+        dataset: activeDatasetKey,
+        role: currentRole,
+        nodeId: history[history.length - 1] || null,
+      }));
+    } catch {
+      // Stockage indisponible (navigation privée, quota...) — dégrade en silence,
+      // l'outil reste utilisable sans persistance.
+    }
+  }
+
+  function loadState() {
+    try {
+      const raw = localStorage.getItem(STATE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // Rejoue les mêmes actions qu'un clic utilisateur (bouton jeu de données,
+  // sélecteur de rôle) plutôt que de dupliquer leur logique — un seul endroit
+  // à maintenir si elle évolue. Plusieurs rendus intermédiaires en résultent,
+  // mais tout se joue avant le premier paint (aucun scintillement visible).
+  (function restoreState() {
+    const saved = loadState();
+    if (!saved) return;
+    if (saved.dataset && saved.dataset !== activeDatasetKey && DATASETS[saved.dataset]) {
+      const btn = document.querySelector(`.ds-btn[data-ds="${saved.dataset}"]`);
+      if (btn) btn.click();
+    }
+    if (saved.role && saved.role !== currentRole && ROLES[saved.role]) {
+      roleSelect.value = saved.role;
+      roleSelect.dispatchEvent(new Event("change"));
+    }
+    if (saved.nodeId && nodes[saved.nodeId] && canSeeNode(saved.nodeId)) {
+      history = [saved.nodeId];
+    }
+  })();
 
   render();
 </script>
