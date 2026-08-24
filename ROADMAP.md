@@ -379,10 +379,19 @@ raccourci technique.
       peuplé, chemin d'erreur réseau affiché correctement, bouton
       réactivé après échec) — `bv-ollama` n'était pas démarré au moment du
       test, pas encore vérifié avec une vraie réponse du modèle.
-      **Reste à faire** : vérifier une vraie réponse avec `bv-ollama` lancé ;
-      CORS non testé (Ollama filtre l'`Origin` par défaut — si la page est
-      ouverte en `file://`, `OLLAMA_ORIGINS` pourrait devoir être élargi côté
-      conteneur ; à vérifier au premier essai réel).
+      **CORS confirmé le 2026-08-24** : `bv-ollama` tournait bel et bien
+      (`curl http://localhost:11434/api/tags` répond), mais le `fetch` de
+      la page échoue en CORS quand `index.html` est ouvert en `file://` —
+      l'origine sérialise en `"null"`, absente de la liste blanche
+      qu'Ollama vérifie par défaut. Confirmé en servant le dossier
+      (`python -m http.server` puis `http://127.0.0.1:PORT/index.html`) :
+      la même page fonctionne alors sans rien changer côté conteneur —
+      le défaut d'Ollama autorise déjà `http://localhost:*`/
+      `http://127.0.0.1:*`. **Pas besoin d'élargir `OLLAMA_ORIGINS`** :
+      juste ne pas ouvrir le fichier directement. Un contrôle de
+      disponibilité (`fetch` vers `/api/tags`, 1,5s de timeout) tourne
+      maintenant une fois au chargement (voir chantier ergonomie
+      ci-dessous) et l'explique directement dans l'onglet Assistant.
 - [x] **Explication des échecs de qualité** — fait le 2026-08-22. Bouton
       "🤖 Expliquer l'impact" affiché à côté de chaque pastille de contrôle
       `warn`/`fail` (jamais sur un `ok`, rien à expliquer) — présent à la
@@ -534,3 +543,49 @@ volontairement : c'est le seul qui touche des ressources hors de ce projet
 (LLM, orchestrateur, bases multiples) et donc le seul qui demande de statuer
 d'abord sur la frontière avec le projet partagé — pas un chantier à lancer
 à la légère un soir.
+
+---
+
+## 🖱️ Post-roadmap : vérification navigateur + ergonomie (2026-08-24)
+
+Les 4 chantiers ci-dessus étaient fonctionnellement bouclés, mais jamais
+vérifiés dans un vrai navigateur — seulement en jsdom (pas de layout/paint,
+voir la mémoire [[js-artifact-verification]]). Deux passes complémentaires :
+
+**Vérification réelle (Playwright, `chromium.launch()` + screenshots)** —
+3 bugs de rendu trouvés, invisibles à toute la suite jsdom du projet :
+1. Mini-diagrammes de lignage en rectangles noirs pour tout nœud
+   `dax-measure`/`dax-column` (`var(--${type}-soft)` interpolait un type
+   sans variable CSS dédiée). Fix : `colorType()`.
+2. Un grand rectangle blanc vide sous la vue Fiche à chaque chargement,
+   présent depuis la construction de la vue Graphe complet — `#graphe-view`
+   (sélecteur ID) passait toujours devant `[hidden]` (spécificité). Fix :
+   `#graphe-view:not([hidden])`.
+3. "17 table(s)" affiché pour des mesures/pipelines dans la vue Systèmes.
+   Fix : `COUNT_WORD` par type de nœud.
+
+**Retour d'usage réel** (Valentin, en pilotant l'outil) — 3 améliorations :
+1. **Vue d'ensemble des alertes qualité** — carte "Alertes qualité" en haut
+   de la vue Systèmes (tous nœuds, tous statuts non-ok, triés échecs puis
+   avertissements, cliquables). Avant : la seule façon de les découvrir
+   était de cliquer les 80 nœuds réels un par un.
+2. **Tag système dans la barre latérale** — les systèmes fusionnés
+   partagent parfois le même nom de domaine/élément (2 modèles Power BI,
+   une mesure "CA" chacun dans un dossier quasi identique) ; `shortSystem()`
+   affiche maintenant lequel à côté du nom.
+3. **Statut bv-ollama vérifié une fois au chargement** (`fetch` vers
+   `/api/tags`, 1,5s de timeout) plutôt que découvert après un clic —
+   bannière dans l'onglet Assistant, boutons "Expliquer l'impact" grisés
+   ailleurs (jamais bloqués). A confirmé au passage le point CORS resté
+   ouvert au chantier 4 (voir plus haut) : `bv-ollama` tournait, le blocage
+   venait de l'origine `file://`, résolu en servant la page (`python -m
+   http.server`) plutôt qu'en l'ouvrant directement.
+
+Bug trouvé en construisant #1 : changer de jeu de données en restant sur
+Systèmes/Dérive/Assistant laissait l'ancien contenu affiché (seul
+`renderGraphView()` était rappelé par les handlers dataset/rôle, tous les
+autres onglets restaient périmés). Factorisé dans `refreshCurrentView()`.
+
+Tout vérifié en jsdom (`test-filiation-ux.js`) et en vrai navigateur
+(captures) ; suite complète (7 fichiers) sans régression. Repo à jour,
+32 commits.

@@ -108,7 +108,10 @@ Cinq façons de regarder le lignage, dans le même outil :
 3. **Dérive** — compare deux instantanés historisés (`snapshots/*.json`) et
    liste ce qui a changé : modèles/sources ajoutés ou supprimés, colonnes
    ajoutées/supprimées/retypées, tests dbt ajoutés ou supprimés.
-4. **Systèmes** — vue par système source (ex. "Postgres — ecommerce",
+4. **Systèmes** — une carte **Alertes qualité** (tous les contrôles non-ok,
+   triés échecs puis avertissements, cliquables vers la fiche concernée —
+   sans ça, la seule façon de les découvrir est de cliquer les nœuds un par
+   un) puis une carte par système source (ex. "Postgres — ecommerce",
    "Power BI — Dashboard entrepot", "n8n — bv-dataplatform") : ses
    tables/mesures/workflows, leur volumétrie réelle (comptage direct en
    base quand ça s'applique), combien d'éléments en dépendent en aval, et
@@ -118,7 +121,12 @@ Cinq façons de regarder le lignage, dans le même outil :
 5. **Assistant** — poser une question en langage naturel sur un élément du
    graphe (ex. "d'où vient cette donnée ?"), répondue par un LLM local
    (`bv-ollama`) dont le contexte se limite au sous-graphe pertinent
-   (l'élément + son voisinage direct), jamais tout le graphe.
+   (l'élément + son voisinage direct), jamais tout le graphe. Un statut
+   ("🟢 disponible" / "🔴 injoignable") est vérifié une fois au chargement —
+   si la page est ouverte en double-cliquant le fichier (`file://`), Ollama
+   bloque la requête en CORS même s'il tourne ; la servir localement
+   (`python -m http.server` puis `http://127.0.0.1:PORT/index.html`) suffit,
+   son origine par défaut autorise déjà `localhost`/`127.0.0.1`.
 
 Là où dbt n'a pas de description, la page l'affiche honnêtement plutôt que
 d'improviser un texte.
