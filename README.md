@@ -10,6 +10,7 @@
 > une forme cliquable, pensée pour quelqu'un qui ne lit pas de DAG.
 
 **Sommaire** : [Ce que fait le projet](#-ce-que-fait-le-projet) ·
+[Ergonomie](#ergonomie) ·
 [Rôles](#-rôles-simulation-de-visibilité) ·
 [Résultats chiffrés](#-résultats-chiffrés) ·
 [Contenu](#️-contenu) ·
@@ -39,7 +40,9 @@
 4. **Ce qui reste à faire** : [ROADMAP.md](ROADMAP.md) — les 4 chantiers
    sont bouclés ; 3 points restent délibérément écartés, pas oubliés
    (domaine Data du jeu démo, quelques introspections base moins
-   prioritaires, portail hébergé multi-ERP).
+   prioritaires, portail hébergé multi-ERP). Deux rounds "post-roadmap"
+   (ergonomie, dogfooding par rôle, filtres, favoris, automatisation n8n)
+   ont continué depuis — voir le bas de ROADMAP.md pour le détail.
 
 ## 🧬 Ce que fait le projet
 
@@ -131,6 +134,33 @@ Cinq façons de regarder le lignage, dans le même outil :
 Là où dbt n'a pas de description, la page l'affiche honnêtement plutôt que
 d'improviser un texte.
 
+### Ergonomie
+
+Ajouté après la version fonctionnelle initiale, en pilotant l'outil comme
+un vrai utilisateur (voir la section post-roadmap de
+[ROADMAP.md](ROADMAP.md) pour le détail et les bugs trouvés en chemin) :
+
+- **Recherche globale** (`/` ou bouton dans la barre latérale) — cherche
+  parmi tous les éléments accessibles au rôle courant, tous domaines et
+  systèmes confondus, classés par pertinence.
+- **Historique de navigation** (précédent/suivant, boutons ← → en haut de
+  la fiche) — distinct du fil d'Ariane, qui reste un chemin de dérivation.
+- **État persistant** (`localStorage`) : jeu de données, rôle, dernier
+  élément consulté, thème, éléments épinglés et récemment consultés — tout
+  restauré au rechargement.
+- **Éléments épinglés + récemment consultés** dans la barre latérale
+  (bouton étoile sur chaque fiche).
+- **Filtres à bascule unique/multiple** (Tout sélectionner/désélectionner)
+  sur le domaine et le système dans le Graphe complet, et sur le système
+  dans la vue Systèmes.
+- **Minimap** et **survol pour isoler les liens** d'un nœud dans le Graphe
+  complet — utile dès que le graphe devient dense (arêtes qui se
+  croisent), le zoom seul n'y change rien.
+- **Thème clair/sombre/automatique** (bouton dédié, persisté) et overlay
+  d'aide clavier (`?`).
+- **Sévérité visuelle** sur les alertes qualité (bandeau rouge/ambre selon
+  fail/warn) et recherche/filtre sur la liste "Alertes qualité".
+
 ## 🎭 Rôles (simulation de visibilité)
 
 Un sélecteur en haut de la barre latérale change ce qui est visible :
@@ -185,7 +215,7 @@ qui peut agir — pas si l'action est sûre.
 | Instantanés historisés | 2 | 1 extraction réelle + 1 exemple simulé (illustratif, pour démontrer la vue Dérive) |
 | Lignes en base, couche `raw` (projet réel) | 168 741 | comptage réel via psycopg2, pas une estimation — `fct_sales` seul : 121 331 |
 | Relations inférées | 4 | convention de nommage `xxx_id` → table `xxx`, sur les 5 tables `raw` (1 système) |
-| Mesures DAX (Power BI, Projets 09 + 13) | 34 | extraites de 2 modèles réels via MCP `powerbi-modeling` — 17 duplications de nom détectées entre les deux, 15 de formule |
+| Mesures DAX (Power BI, Projets 09 + 13) | 34 | extraites de 2 modèles réels via MCP `powerbi-modeling` — 17 mesures dupliquées entre les deux modèles sous le même nom, dont **2 divergent réellement** (formule différente, signalées "fail") et 15 sont cohérentes |
 | Workflows n8n (pipeline) | 5 | lus depuis `projet-baptiste-valentin/n8n/workflows/*.json`, aucune connexion live |
 | Nœuds réels au total (jeu "Projet réel", fusionné) | 80 | dbt_ecommerce + bv-postgres-dbtdev + bv-mysql-crm + Power BI Projets 09+13 (34 mesures) + n8n (5 pipelines) + Prefect (2 flows) |
 
@@ -204,7 +234,7 @@ projet-14-filiation/
     ├── scan_database.py          ← "valise de détection" : scanne n'importe quelle base, sans dbt
     ├── extract_powerbi.py        ← ajoute mesures/colonnes calculées DAX depuis un export JSON (MCP powerbi-modeling)
     ├── powerbi_export.example.json      ← schéma attendu par extract_powerbi.py --from-json
-    ├── find_duplicate_powerbi_measures.py  ← annote les mesures dupliquées entre plusieurs .pbix
+    ├── find_duplicate_powerbi_measures.py  ← annote les mesures dupliquées entre .pbix (warn si cohérentes, fail si formules divergentes)
     ├── extract_n8n.py            ← ajoute des nœuds pipeline depuis des workflows n8n versionnés en JSON
     ├── extract_prefect.py        ← ajoute des nœuds pipeline depuis le client Prefect local (connexion directe)
     ├── suggest_descriptions.py   ← descriptions suggérées par LLM local (bv-ollama), jamais imposées
@@ -300,13 +330,13 @@ Toujours additif (contrairement à `scan_database.py` sans `--merge`) : un
 modèle Power BI vient s'ajouter aux nœuds réels déjà présents, il ne les
 remplace jamais.
 
-**Mesures dupliquées entre rapports** : une fois deux modèles (ou plus)
-extraits, `scripts/find_duplicate_powerbi_measures.py` compare leurs exports
-JSON et détecte, indépendamment, une même mesure recopiée entre rapports
-(même nom) ou une même logique sous un autre nom (même formule DAX
-normalisée) — annote les nœuds déjà présents (aucun nouveau nœud) avec un
-contrôle qualité, réutilisant la même pastille + bouton IA que le reste de
-l'outil :
+**Mesures dupliquées entre rapports, sévérité différenciée** : une fois deux
+modèles (ou plus) extraits, `scripts/find_duplicate_powerbi_measures.py`
+compare leurs exports JSON et pose **une seule pastille consolidée par
+mesure** — "warn" (mesure dupliquée mais cohérente : même nom, même formule
+normalisée) ou "**fail**" (définitions divergentes : même nom, formule
+**différente** — deux rapports affichent un chiffre sous le même nom sans
+le calculer pareil, le vrai risque de gouvernance) :
 
 ```bash
 python scripts/extract_powerbi.py --from-json projet09.json
@@ -314,11 +344,24 @@ python scripts/extract_powerbi.py --from-json projet13.json
 python scripts/find_duplicate_powerbi_measures.py --from-json projet09.json --from-json projet13.json --apply
 ```
 
+`--migrate` reconcilie a posteriori les anciennes annotations (schéma à
+deux pastilles séparées, une version précédente de ce script) en
+recalculant depuis le champ `sql` déjà embarqué sur chaque nœud, sans
+requérir de nouveaux exports :
+
+```bash
+python scripts/find_duplicate_powerbi_measures.py --migrate --apply
+```
+
 Testé en réel entre les Projets 09 et 13 (17 mesures chacun, même socle) :
-17 duplications de nom, 15 de formule — les 2 écarts (`CA moyenne 3M`,
-`Rang produit`) ont le même nom mais une logique réellement différente
-entre les deux rapports, exactement le genre de dérive silencieuse que ce
-script existe pour repérer.
+17 mesures partagent un nom entre les deux modèles, dont **2 divergent
+réellement** (`CA moyenne 3M`, `Rang produit` au départ — puis correction
+d'un faux positif de normalisation, voir plus bas) et 15 sont cohérentes.
+Après correction de `normalize_expr` (un espacement autour d'une virgule,
+`, ,` vs `,,` dans un `RANKX`, empêchait de reconnaître deux formules
+DAX identiques), seule `CA moyenne 3M` reste une divergence authentique —
+`Rang produit` a la même logique dans les deux modèles, juste un
+espacement différent.
 
 ## 🔗 Pipelines n8n & Prefect
 
@@ -354,6 +397,20 @@ distincts suffisent à les distinguer) :
   ```
   Extrait les 2 flows réels du portfolio (`elt-ecommerce` du Projet 10,
   `entrepot-etl` du Projet 04) avec leur vrai historique d'exécution.
+
+**Watchdog n8n (2026-08-24)** : `filiation-derive-structurelle.json`, un
+6e workflow versionné dans `projet-baptiste-valentin/n8n/workflows/` (même
+convention que les 5 existants — webhook de déclenchement, nœud Postgres
+via le credential partagé, `noOp` final documentant l'intégration à
+brancher). Compte les tables des schémas `erp_migre`/`public_marts`/`raw`
+sur `bv-postgres-dbtdev` (`information_schema`, portable) et compare au
+dernier compte connu lors du dernier `scan_database.py --merge` (23) —
+signale qu'une extraction est probablement nécessaire si ça diverge.
+**Ne relance pas le pipeline lui-même** : le conteneur `bv-n8n` n'a accès
+ni au système de fichiers de ce poste ni à Power BI Desktop, seulement à
+`bv-postgres-dbtdev`/`bv-mysql-crm` (même réseau Docker). Non testé en
+conditions réelles (pas d'accès interactif à l'UI/API n8n depuis une
+session Claude Code) — à importer et vérifier avant activation.
 
 ## ⚠️ Limites assumées
 

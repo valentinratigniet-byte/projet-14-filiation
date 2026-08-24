@@ -1,6 +1,6 @@
 # Feuille de route
 
-État au 2026-08-22 (29 commits). Quatre chantiers identifiés à l'origine :
+État au 2026-08-24 (45 commits). Quatre chantiers identifiés à l'origine :
 1) durcir le raccordement aux bases, 2) compléter les informations qu'on en
 extrait, 3) étendre le lignage jusqu'à la couche Power BI, 4) connecter
 l'outil au reste de l'écosystème réel (LLM, orchestrateur de pipelines,
@@ -12,7 +12,11 @@ explicitement écartés par choix, pas des oublis : le domaine Data du jeu
 jeu réel), quelques introspections base moins prioritaires (vues
 matérialisées/triggers/partitionnement), et le portail hébergé multi-ERP
 (chantier à part, autre modèle de risque). Détail par chantier ci-dessous,
-gardé pour la trace de ce qui a été fait et pourquoi.
+gardé pour la trace de ce qui a été fait et pourquoi. Depuis, deux rounds
+« post-roadmap » (vérification navigateur, dogfooding par rôle, ergonomie
+du Graphe complet, filtres, favoris, automatisation n8n) ont continué
+d'améliorer l'outil sans rouvrir ces 4 chantiers — voir les sections
+correspondantes en bas de page.
 
 ## 🔌 1. Raccordement aux bases de données
 
@@ -589,3 +593,120 @@ autres onglets restaient périmés). Factorisé dans `refreshCurrentView()`.
 Tout vérifié en jsdom (`test-filiation-ux.js`) et en vrai navigateur
 (captures) ; suite complète (7 fichiers) sans régression. Repo à jour,
 32 commits.
+
+## 🖱️ Post-roadmap, suite : zoom/pan, ergonomie du Graphe complet, dogfooding par rôle (2026-08-24)
+
+**Zoom/pan du Graphe complet, plainte "rigide" investiguée (34e commit)** —
+3 bugs réels, pas juste une impression : le pan utilisait des deltas en
+pixels écran bruts alors que le SVG est affiché via `viewBox` +
+`preserveAspectRatio="meet"` (glisser 100px ne déplaçait le contenu que
+d'~30px) ; le zoom (molette ou boutons) partait toujours d'un coin fixe au
+lieu du curseur/centre ; **tout** `wheel` event zoomait, y compris un
+scroll deux-doigts trackpad normal. Fixes : `svgPointFromClient()` (repli
+manuel si `getScreenCTM()` est indisponible, ex. jsdom), `zoomAt()` ancré
+sur un point donné, molette seule = déplacer / `Ctrl`+molette = zoomer
+(convention Figma/Google Maps). Mesuré, pas juste visuel : glisser 150px
+déplace le contenu de 150,0px exactement (avant : ~44px).
+
+**Les 6 propositions d'ergonomie qui en ont découlé (35e-40e commits)**,
+toutes construites après validation :
+1. Filtre domaine du Graphe complet : boutons **Tout sélectionner/
+   désélectionner** + bascule **choix unique/multiple** (mode "unique" =
+   comportement radio, isole le domaine cliqué).
+2. **Historique précédent/suivant** (`navPast`/`navFuture`, distinct du fil
+   d'Ariane `history`), point d'entrée unique `navigateTo(id)` remplaçant
+   5 sites d'appel dupliqués. Bug trouvé en testant : `sqlFragment()`
+   construisait sa table de résolution uniquement depuis le jeu **démo** —
+   une coïncidence de mot plantait sur le jeu réel.
+3. **Persistance d'état** (`localStorage`, dataset/rôle/dernier nœud) —
+   restaurée en rejouant les mêmes interactions utilisateur (`.click()`/
+   `change`) que les handlers existants, pas en dupliquant leur logique.
+4. **Filtre par système** dans le Graphe complet, deuxième dimension
+   indépendante du filtre domaine, auto-masquée si moins de 2 systèmes
+   après filtrage domaine.
+5. **Recherche globale** (quick switcher, bouton ou raccourci `/`),
+   résultats classés par pertinence, filtrés par `canSeeNode` du rôle
+   courant. Bug trouvé en testant en vrai navigateur (invisible à jsdom,
+   même classe que le point 2 du round précédent) : `.qs-overlay { display:
+   flex; }` sans garde `:not([hidden])` interceptait tous les clics de la
+   page même masqué ; plus un focus non rendu à la fermeture qui bloquait
+   ensuite le raccourci `/`.
+6. **Minimap** du Graphe complet (coin bas-droit, pastille par nœud,
+   rectangle de viewport, clic/glisser pour recentrer) — branchée dans les
+   handlers mousedown/mousemove/mouseup déjà existants plutôt que d'ajouter
+   des listeners `window` par rendu (qui se seraient empilés à chaque
+   changement de filtre).
+
+**Pass esthétique/pratique (41e commit)** : sévérité visuelle sur les
+alertes qualité (bandeau rouge/ambre, nouveaux tokens `--ok-soft`/
+`--warn-soft`/`--fail-soft`), bannière bv-ollama transformée en vrai
+encadré d'alerte, contraste du bouton "Signaler un problème" corrigé,
+recherche + chips de sévérité sur la liste "Alertes qualité", overlay
+d'aide clavier (`?`), bascule de thème clair/sombre/auto persistée.
+
+**Dogfooding en rôle PDG (42e commit)** : Valentin a demandé de tracer une
+mesure métier jusqu'à sa source *comme le ferait un dirigeant*. Trois
+accrocs trouvés et corrigés :
+1. Les pastilles "mesure dupliquée" ne distinguaient pas une duplication
+   bénigne (même formule entre 2 modèles Power BI) d'une divergence
+   silencieuse réelle (même nom, formule **différente**) — `find_
+   duplicate_powerbi_measures.py` réécrit pour poser une seule pastille par
+   mesure, "warn" si cohérente, "**fail**" (nouveau libellé "Définitions
+   divergentes entre rapports") sinon. Bug de détection trouvé au passage
+   en migrant les 34 mesures déjà extraites : `normalize_expr` ratait
+   `[CA], , DESC` vs `[CA],, DESC` (espace collé à une virgule autour d'un
+   argument RANKX vide) — corrigé, "Rang produit" n'est plus signalé à
+   tort. Sur le jeu réel : **2 divergences authentiques** ("CA moyenne
+   3M"), 32 duplications reclassées cohérentes.
+2. La carte "Alertes qualité" (vue d'ensemble sans clic nœud par nœud) était
+   masquée pour le rôle PDG, alors que c'est exactement son besoin — nouveau
+   rôle `systemesOverviewOnly` : onglet Systèmes ouvert, mais restreint à
+   cette seule carte (pas les cartes techniques par système).
+3. Le nœud verrouillé (🔒) n'expliquait la restriction qu'au survol du
+   `title` — `chipList()` ajoute maintenant une note visible sans interaction.
+
+**Filtre Systèmes + survol pour graphe dense + 3 bugs mobile (43e-44e
+commits)** : même toolbar filtre (choix unique/multiple, tout sélectionner/
+désélectionner) appliquée à la vue Systèmes. Pour "trop de liens,
+impossible de lire" sur le Graphe complet : le vrai problème n'était pas le
+zoom (le texte redevient lisible au-delà de 150%) mais le nombre d'arêtes
+qui se croisent, inchangé quel que soit le zoom — **survol d'un nœud** (et
+focus clavier, Tab) isolant ses arêtes entrantes ET sortantes en estompant
+tout le reste (contrairement à "Analyse d'impact", aval uniquement).
+
+Puis 3 vrais débordements horizontaux trouvés en inspectant le rendu à
+390px (jamais testé sur mobile de toute la session) : l'onglet Assistant
+inatteignable au clic (`.view-switch` sans `flex-wrap`), les sélecteurs
+d'instantané de la vue Dérive larges de 648px (un `<select>` se dimensionne
+sur son `<option>` la plus large — ironie, c'est le libellé du **commit
+précédent de cette même session** qui a fait déborder ce bug latent), et
+des identifiants de nœuds longs non coupables dans le rapport Dérive. Les
+trois partageaient la même cause CSS : `min-width: auto` (valeur initiale)
+sur un enfant de flexbox impose un plancher basé sur le contenu qui
+l'emporte sur `max-width` tant qu'il n'est pas mis à `0` explicitement.
+
+**Éléments épinglés + récemment consultés (45e commit)** : bouton étoile
+sur chaque fiche, "Récemment consultés" alimenté depuis le seul point
+d'entrée qui affiche une fiche (pas dupliqué sur chaque site de
+navigation), `localStorage` indépendant du jeu de données/rôle (filtré à
+l'affichage par `canSeeNode` + existence, pas au stockage).
+
+**Automatisation (n8n, projet partagé)** : un nouveau workflow versionné
+`filiation-derive-structurelle.json` (dans
+`projet-baptiste-valentin/n8n/workflows/`, même convention que les 5
+existants) compte les tables des schémas `erp_migre`/`public_marts`/`raw`
+sur `bv-postgres-dbtdev` (`information_schema`, aucune colonne métier à
+deviner) et compare au dernier compte connu lors du dernier
+`scan_database.py --merge` (23). Périmètre honnête : ce conteneur n'a accès
+ni au système de fichiers du poste ni à Power BI Desktop — il ne peut pas
+relancer le pipeline d'extraction lui-même, seulement signaler qu'une
+extraction manuelle est probablement nécessaire (message prêt, noeud final
+un placeholder à brancher sur une vraie notification, comme les autres
+workflows de ce dossier). Non testé en conditions réelles (pas d'accès
+interactif à l'UI/API n8n depuis une session Claude Code) — à importer et
+vérifier par Valentin avant activation.
+
+Chaque étape de ce round vérifiée en jsdom (suite à 7 fichiers) + script(s)
+Playwright dédié(s) + tous les scripts précédents (13 au total en fin de
+round) + captures d'écran clair/sombre/mobile — sans régression à aucune
+étape. Repo à jour, 45 commits.
