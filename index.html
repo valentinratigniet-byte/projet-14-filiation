@@ -458,7 +458,7 @@
     margin: 0.6rem 0 0.5rem;
   }
 
-  .graph-domain-bulk, .graph-domain-mode { display: flex; gap: 0.3rem; }
+  .graph-domain-bulk, .graph-domain-mode, .systems-filter-mode { display: flex; gap: 0.3rem; }
 
   .graph-domain-btn, .graph-mode-btn {
     font-family: "IBM Plex Mono", monospace;
@@ -1304,7 +1304,7 @@
           <button type="button" id="zoom-in" aria-label="Zoom avant">+</button>
         </div>
       </div>
-      <p class="graph-hint">Glisser pour déplacer · molette pour déplacer, <kbd>Ctrl</kbd>+molette pour zoomer · double-clic pour zoomer sur un point</p>
+      <p class="graph-hint">Glisser pour déplacer · molette pour déplacer, <kbd>Ctrl</kbd>+molette pour zoomer · double-clic pour zoomer sur un point · survolez un nœud pour isoler ses liens dans un graphe dense</p>
       <div class="graph-domain-toolbar">
         <div class="graph-domain-bulk">
           <button type="button" id="graph-domain-all" class="graph-domain-btn">Tout sélectionner</button>
@@ -1338,6 +1338,17 @@
     </div>
 
     <div id="systemes-view" hidden>
+      <div class="graph-domain-toolbar" id="systems-filter-toolbar" hidden>
+        <div class="graph-domain-bulk">
+          <button type="button" id="systems-filter-all" class="graph-domain-btn">Tout sélectionner</button>
+          <button type="button" id="systems-filter-none" class="graph-domain-btn">Tout désélectionner</button>
+        </div>
+        <div class="systems-filter-mode" role="tablist" aria-label="Mode de sélection des systèmes">
+          <button type="button" class="graph-mode-btn active" data-mode="multi" aria-pressed="true">Choix multiple</button>
+          <button type="button" class="graph-mode-btn" data-mode="single" aria-pressed="false">Choix unique</button>
+        </div>
+      </div>
+      <div class="graph-domain-filter" id="systems-filter-chips"></div>
       <div id="systems-container"></div>
     </div>
 
@@ -37581,10 +37592,10 @@
     hiddenGraphDomains = new Set(currentGraphDomains);
     renderGraphView();
   });
-  document.querySelectorAll(".graph-mode-btn").forEach((btn) => {
+  document.querySelectorAll(".graph-domain-mode .graph-mode-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       graphFilterMode = btn.dataset.mode;
-      document.querySelectorAll(".graph-mode-btn").forEach((b) => {
+      document.querySelectorAll(".graph-domain-mode .graph-mode-btn").forEach((b) => {
         b.classList.toggle("active", b === btn);
         b.setAttribute("aria-pressed", String(b === btn));
       });
@@ -37757,7 +37768,7 @@
   // sous (clientX, clientY) — au lieu de tout faire fuir depuis un coin,
   // comme un vrai outil de carte/diagramme (Figma, Google Maps...).
   function zoomAt(clientX, clientY, newZoomScale) {
-    newZoomScale = Math.min(2.5, Math.max(0.35, newZoomScale));
+    newZoomScale = Math.min(4, Math.max(0.35, newZoomScale));
     const svg = document.querySelector("#graph-canvas svg");
     const pt = svgPointFromClient(svg, clientX, clientY);
     if (pt) {
@@ -37869,6 +37880,10 @@
       };
       g.addEventListener("click", go);
       g.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+      g.addEventListener("mouseenter", () => hoverHighlightNode(id));
+      g.addEventListener("mouseleave", updateGraphHighlight);
+      g.addEventListener("focus", () => hoverHighlightNode(id));
+      g.addEventListener("blur", updateGraphHighlight);
       viewport.appendChild(g);
     }
 
@@ -37918,6 +37933,26 @@
     const s = document.createElement("strong");
     s.textContent = text;
     return s;
+  }
+
+  // Survol/focus clavier d'un nœud : fait ressortir uniquement SES arêtes
+  // (amont + aval, contrairement à l'analyse d'impact qui n'affiche que
+  // l'aval) sur un graphe dense où des dizaines d'arêtes se croisent — sans
+  // avoir à cocher "Analyse d'impact" ni cliquer. Réutilise .is-dimmed/
+  // .is-impacted déjà stylés ; updateGraphHighlight() restaure l'état réel
+  // (focus/impact ou neutre) à la sortie du survol, aucun état à suivre en plus.
+  function hoverHighlightNode(id) {
+    const canvas = document.getElementById("graph-canvas");
+    if (!canvas || !nodes[id]) return;
+    const neighbors = new Set([id, ...(nodes[id].deps || []), ...usedBy(id)]);
+    canvas.querySelectorAll(".graph-node").forEach((g) => {
+      g.classList.toggle("is-dimmed", !neighbors.has(g.dataset.id));
+    });
+    canvas.querySelectorAll(".graph-edge").forEach((line) => {
+      const touches = line.dataset.from === id || line.dataset.to === id;
+      line.classList.toggle("is-dimmed", !touches);
+      line.classList.toggle("is-impacted", touches);
+    });
   }
 
   function updateGraphHighlight() {
@@ -38399,20 +38434,91 @@
     return card;
   }
 
+  let hiddenSystemsView = new Set();
+  let systemsViewFilterMode = "multi"; // "multi" : chaque chip s'active/désactive indépendamment. "single" : cliquer un chip isole ce système.
+  let currentSystemsViewNames = [];
+
+  // Tout sélectionner/désélectionner + choix unique/multiple pour la vue
+  // Systèmes, même toolbar (visuellement) et même logique que le filtre
+  // domaine du Graphe complet -- avec assez de systèmes fusionnés (5 sur le
+  // jeu réel), comparer un seul système à la fois ou en isoler quelques-uns
+  // vaut la même ergonomie ici que sur le graphe.
+  function renderSystemsFilterToolbar(systemNames) {
+    const toolbar = document.getElementById("systems-filter-toolbar");
+    const chipsEl = document.getElementById("systems-filter-chips");
+    currentSystemsViewNames = systemNames;
+    const show = systemNames.length > 1;
+    toolbar.hidden = !show;
+    chipsEl.hidden = !show;
+    if (!show) return;
+
+    chipsEl.innerHTML = "";
+    systemNames.forEach((sys) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "domain-chip" + (hiddenSystemsView.has(sys) ? " is-off" : "");
+      btn.textContent = shortSystem({ system: sys });
+      btn.title = sys;
+      btn.setAttribute("aria-pressed", String(!hiddenSystemsView.has(sys)));
+      btn.addEventListener("click", () => {
+        if (systemsViewFilterMode === "single") {
+          hiddenSystemsView = new Set(systemNames.filter((x) => x !== sys));
+        } else if (hiddenSystemsView.has(sys)) {
+          hiddenSystemsView.delete(sys);
+        } else {
+          hiddenSystemsView.add(sys);
+        }
+        renderSystemsView();
+      });
+      chipsEl.appendChild(btn);
+    });
+  }
+
+  document.getElementById("systems-filter-all").addEventListener("click", () => {
+    hiddenSystemsView.clear();
+    renderSystemsView();
+  });
+  document.getElementById("systems-filter-none").addEventListener("click", () => {
+    hiddenSystemsView = new Set(currentSystemsViewNames);
+    renderSystemsView();
+  });
+  document.querySelectorAll(".systems-filter-mode .graph-mode-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      systemsViewFilterMode = btn.dataset.mode;
+      document.querySelectorAll(".systems-filter-mode .graph-mode-btn").forEach((b) => {
+        b.classList.toggle("active", b === btn);
+        b.setAttribute("aria-pressed", String(b === btn));
+      });
+    });
+  });
+
   function renderSystemsView() {
     const container = document.getElementById("systems-container");
     container.innerHTML = "";
     container.appendChild(renderQualityOverview());
 
-    if (ROLES[currentRole].systemesOverviewOnly) return;
+    if (ROLES[currentRole].systemesOverviewOnly) {
+      document.getElementById("systems-filter-toolbar").hidden = true;
+      document.getElementById("systems-filter-chips").hidden = true;
+      return;
+    }
 
     const groups = groupBySystem();
-    const systemNames = Object.keys(groups).sort();
+    const allSystemNames = Object.keys(groups).sort();
+    renderSystemsFilterToolbar(allSystemNames);
+    const systemNames = allSystemNames.filter((sys) => !hiddenSystemsView.has(sys));
 
-    if (!systemNames.length) {
+    if (!allSystemNames.length) {
       const p = document.createElement("p");
       p.className = "derive-empty";
       p.textContent = "Aucun système source dans ce jeu de données.";
+      container.appendChild(p);
+      return;
+    }
+    if (!systemNames.length) {
+      const p = document.createElement("p");
+      p.className = "derive-empty";
+      p.textContent = "Aucun système visible — réactivez-en au moins un ci-dessus.";
       container.appendChild(p);
       return;
     }
