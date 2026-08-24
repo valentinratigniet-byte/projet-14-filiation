@@ -364,6 +364,15 @@
 
   .graph-domain-filter { display: flex; flex-wrap: wrap; gap: 0.35rem; }
 
+  .graph-system-filter-wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.4rem; }
+  .graph-filter-label {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.66rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+  }
+
   .domain-chip {
     font-family: "IBM Plex Mono", monospace;
     font-size: 0.68rem;
@@ -1110,6 +1119,10 @@
         </div>
       </div>
       <div class="graph-domain-filter" id="graph-domain-filter"></div>
+      <div class="graph-system-filter-wrap" id="graph-system-filter-wrap" hidden>
+        <span class="graph-filter-label">Systèmes</span>
+        <div class="graph-domain-filter" id="graph-system-filter"></div>
+      </div>
       <div class="graph-canvas" id="graph-canvas"></div>
       <div class="graph-infobar" id="graph-infobar"></div>
     </div>
@@ -33161,6 +33174,36 @@
   let hiddenGraphDomains = new Set();
   let graphFilterMode = "multi"; // "multi" : chaque chip s'active/désactive indépendamment. "single" : cliquer un chip isole ce domaine (comme un bouton radio).
   let currentGraphDomains = [];
+  let hiddenGraphSystems = new Set();
+
+  // Filtre complémentaire au filtre par domaine : par système source
+  // (Postgres/Power BI/n8n/Prefect...). Masqué s'il n'y a rien à trier (0 ou
+  // 1 système présent dans ce qui reste après le filtre domaine) — inutile
+  // sur le jeu démo, utile dès que plusieurs systèmes réels sont fusionnés.
+  // Toggle simple (pas de "Tout"/"choix unique") : un seul niveau d'outils
+  // suffit tant qu'il n'y a pas de vraie demande pour plus sur cet axe-là.
+  function renderGraphSystemFilter(ds) {
+    const wrap = document.getElementById("graph-system-filter-wrap");
+    const el = document.getElementById("graph-system-filter");
+    if (!wrap || !el) return;
+    const systems = [...new Set(Object.values(ds).map((n) => n.source && n.source.system).filter(Boolean))].sort();
+    if (systems.length < 2) { wrap.hidden = true; return; }
+    wrap.hidden = false;
+    el.innerHTML = "";
+    systems.forEach((s) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "domain-chip" + (hiddenGraphSystems.has(s) ? " is-off" : "");
+      btn.textContent = shortSystem({ system: s });
+      btn.title = s;
+      btn.setAttribute("aria-pressed", String(!hiddenGraphSystems.has(s)));
+      btn.addEventListener("click", () => {
+        if (hiddenGraphSystems.has(s)) hiddenGraphSystems.delete(s); else hiddenGraphSystems.add(s);
+        renderGraphView();
+      });
+      el.appendChild(btn);
+    });
+  }
 
   function renderGraphDomainFilter(domains) {
     const el = document.getElementById("graph-domain-filter");
@@ -33339,12 +33382,20 @@
     const allDomains = [...new Set(Object.values(nodes).map((n) => n.domain))].sort();
     renderGraphDomainFilter(allDomains);
 
+    const afterDomainFilter = {};
+    for (const id in nodes) if (!hiddenGraphDomains.has(nodes[id].domain)) afterDomainFilter[id] = nodes[id];
+
+    renderGraphSystemFilter(afterDomainFilter);
     const ds = {};
-    for (const id in nodes) if (!hiddenGraphDomains.has(nodes[id].domain)) ds[id] = nodes[id];
+    for (const id in afterDomainFilter) {
+      const n = afterDomainFilter[id];
+      if (n.source && n.source.system && hiddenGraphSystems.has(n.source.system)) continue;
+      ds[id] = n;
+    }
 
     const infobar = document.getElementById("graph-infobar");
     if (!Object.keys(ds).length) {
-      infobar.textContent = "Aucun élément visible — réactivez au moins un domaine ci-dessus.";
+      infobar.textContent = "Aucun élément visible — réactivez au moins un domaine ou système ci-dessus.";
       return;
     }
 
