@@ -484,6 +484,23 @@
   .graph-canvas.is-panning { cursor: grabbing; }
   .graph-canvas svg { display: block; width: 100%; height: 100%; }
 
+  .graph-minimap {
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    width: 160px;
+    height: 120px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: var(--shadow);
+    opacity: 0.92;
+    cursor: pointer;
+  }
+  .graph-minimap svg { display: block; width: 100%; height: 100%; }
+  .graph-minimap-node { fill: var(--text-muted); opacity: 0.6; }
+  .graph-minimap-viewport { fill: var(--accent-soft); fill-opacity: 0.35; stroke: var(--accent); stroke-width: 3px; }
+
   .graph-node.is-clickable { cursor: pointer; }
   .graph-node.is-dimmed { opacity: 0.28; }
   .graph-node:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -33443,6 +33460,7 @@
     });
   });
   let zoomScale = 1, panX = 0, panY = 0;
+  let minimapPositions = null, minimapSvgW = 0, minimapSvgH = 0;
 
   applyRoleTabVisibility();
 
@@ -33524,6 +33542,56 @@
     if (vp) vp.setAttribute("transform", `translate(${panX},${panY}) scale(${zoomScale})`);
     const resetBtn = document.getElementById("zoom-reset");
     if (resetBtn) resetBtn.textContent = Math.round(zoomScale * 100) + "%";
+    updateMinimapViewport();
+  }
+
+  // Rectangle visible du graphe, exprimé dans le même repère "local" que
+  // positions{} (avant translate/scale) : on inverse d'abord la projection
+  // écran -> viewBox du <svg> (via svgPointFromClient), puis la transform
+  // pan/zoom du <g id="graph-viewport">, pour retrouver les coordonnées où
+  // sont placés les nœuds — c'est ce rectangle que la minimap surligne.
+  function graphVisibleRect() {
+    const canvas = document.getElementById("graph-canvas");
+    const svg = canvas && canvas.querySelector("svg");
+    if (!svg) return null;
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    const p1 = svgPointFromClient(svg, rect.left, rect.top);
+    const p2 = svgPointFromClient(svg, rect.right, rect.bottom);
+    if (!p1 || !p2) return null;
+    return {
+      x: (p1.x - panX) / zoomScale,
+      y: (p1.y - panY) / zoomScale,
+      w: (p2.x - p1.x) / zoomScale,
+      h: (p2.y - p1.y) / zoomScale,
+    };
+  }
+
+  function updateMinimapViewport() {
+    const vpRect = document.getElementById("minimap-viewport");
+    if (!vpRect) return;
+    const r = graphVisibleRect();
+    if (!r) return;
+    vpRect.setAttribute("x", r.x);
+    vpRect.setAttribute("y", r.y);
+    vpRect.setAttribute("width", Math.max(0, r.w));
+    vpRect.setAttribute("height", Math.max(0, r.h));
+  }
+
+  // Centre le graphe principal sur le point (localX, localY) donné dans le
+  // même repère local que positions{}/minimapPositions.
+  function panGraphTo(localX, localY) {
+    const canvas = document.getElementById("graph-canvas");
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const svg = canvas.querySelector("svg");
+    const info = svgPointFromClient(svg, rect.left, rect.top);
+    const scale = info ? info.scale : 1;
+    const viewCenterSvgX = (rect.width / 2) / scale + (info ? info.x : 0);
+    const viewCenterSvgY = (rect.height / 2) / scale + (info ? info.y : 0);
+    panX = viewCenterSvgX - localX * zoomScale;
+    panY = viewCenterSvgY - localY * zoomScale;
+    applyGraphTransform();
   }
 
   // Point écran (clientX/clientY) -> point dans l'espace utilisateur du SVG
@@ -33674,9 +33742,45 @@
     }
 
     canvas.appendChild(svg);
+    renderMinimap(positions, svgW, svgH);
     zoomScale = 1; panX = 0; panY = 0;
     applyGraphTransform();
     updateGraphHighlight();
+  }
+
+  // Mini-vue d'ensemble (coin bas-droit du canevas) : mêmes positions{} que
+  // le graphe principal, réduites (pas de texte, pas d'arêtes -- juste des
+  // pastilles), plus un rectangle qui matérialise la zone actuellement
+  // visible. Cliquer/glisser dessus recentre le graphe principal sur ce
+  // point, comme la minimap d'un éditeur de code ou d'un outil de carte.
+  function renderMinimap(positions, svgW, svgH) {
+    minimapPositions = positions; minimapSvgW = svgW; minimapSvgH = svgH;
+    const canvas = document.getElementById("graph-canvas");
+    const wrap = document.createElement("div");
+    wrap.className = "graph-minimap";
+    wrap.id = "graph-minimap";
+    const svg = svgEl("svg", { viewBox: `0 0 ${svgW} ${svgH}`, "aria-hidden": "true" });
+    for (const id in positions) {
+      const pos = positions[id];
+      svg.appendChild(svgEl("rect", {
+        x: pos.x, y: pos.y, width: pos.w, height: pos.h, rx: 1.5,
+        class: "graph-minimap-node",
+      }));
+    }
+    svg.appendChild(svgEl("rect", { id: "minimap-viewport", class: "graph-minimap-viewport", x: 0, y: 0, width: svgW, height: svgH }));
+    wrap.appendChild(svg);
+    canvas.appendChild(wrap);
+  }
+
+  // Convertit un clic/glisser sur la minimap en coordonnées locales
+  // (repère de positions{}) puis recentre le graphe principal dessus.
+  function panFromMinimapEvent(e) {
+    const wrap = document.getElementById("graph-minimap");
+    if (!wrap || !minimapSvgW || !minimapSvgH) return;
+    const rect = wrap.getBoundingClientRect();
+    const localX = ((e.clientX - rect.left) / rect.width) * minimapSvgW;
+    const localY = ((e.clientY - rect.top) / rect.height) * minimapSvgH;
+    panGraphTo(localX, localY);
   }
 
   function strongEl(text) {
@@ -33770,8 +33874,9 @@
     zoomAt(e.clientX, e.clientY, zoomScale * 1.5);
   });
 
-  let isPanning = false, panStart = null;
+  let isPanning = false, panStart = null, isDraggingMinimap = false;
   graphCanvas.addEventListener("mousedown", (e) => {
+    if (e.target.closest(".graph-minimap")) { isDraggingMinimap = true; panFromMinimapEvent(e); return; }
     if (e.target.closest(".graph-node")) return;
     isPanning = true;
     const svg = graphCanvas.querySelector("svg");
@@ -33780,6 +33885,7 @@
     graphCanvas.classList.add("is-panning");
   });
   window.addEventListener("mousemove", (e) => {
+    if (isDraggingMinimap) { panFromMinimapEvent(e); return; }
     if (!isPanning) return;
     if (panStart.useSvg) {
       const svg = graphCanvas.querySelector("svg");
@@ -33791,7 +33897,7 @@
     }
     applyGraphTransform();
   });
-  window.addEventListener("mouseup", () => { isPanning = false; graphCanvas.classList.remove("is-panning"); });
+  window.addEventListener("mouseup", () => { isPanning = false; isDraggingMinimap = false; graphCanvas.classList.remove("is-panning"); });
 
   // Boutons +/- : zoomer vers le centre du canevas plutôt que vers un coin
   // fixe — même logique d'ancrage que la molette, juste sans curseur à suivre.
