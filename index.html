@@ -816,8 +816,29 @@
     color: var(--text-muted);
   }
 
+  .node-name-row { display: flex; align-items: center; gap: 0.5rem; }
   .node-name { font-size: 1.6rem; font-weight: 600; margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
   .node-desc { margin: 0; color: var(--text-muted); max-width: 62ch; line-height: 1.6; font-size: 0.95rem; }
+
+  .pin-btn { font-size: 1rem; flex-shrink: 0; }
+  .pin-btn.is-pinned { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+
+  .sidebar-shortcuts { display: flex; flex-direction: column; gap: 0.9rem; }
+  .sidebar-shortcuts .sidebar-group { margin: 0; }
+  .sidebar-shortcuts .sidebar-list { flex-direction: column; gap: 0.05rem; }
+  .sidebar-shortcuts .sidebar-list li { display: flex; align-items: center; }
+  .sidebar-shortcuts .sidebar-item { width: auto; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .unpin-btn {
+    flex-shrink: 0;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.3rem 0.5rem;
+    border-radius: 4px;
+  }
+  .unpin-btn:hover { color: var(--fail); background: var(--surface); }
 
   .ai-suggestion {
     display: flex;
@@ -1248,6 +1269,7 @@
       <kbd>/</kbd>
     </button>
     <input class="sidebar-search" id="sidebar-search" type="search" placeholder="Filtrer dans la liste…" aria-label="Filtrer les éléments affichés">
+    <div class="sidebar-shortcuts" id="sidebar-shortcuts"></div>
     <div class="sidebar-groups" id="sidebar-groups"></div>
   </aside>
 
@@ -36741,6 +36763,117 @@
         sidebarGroups.appendChild(group);
       }
     }
+    renderSidebarShortcuts();
+  }
+
+  // ---------- Épinglés / récemment consultés ----------
+  // localStorage, comme le thème et l'état de session -- indépendant du jeu de
+  // données et du rôle : un id filtré au rendu (canSeeNode + existe dans `nodes`)
+  // plutôt que remis à zéro au changement de dataset/rôle, pour qu'un favori
+  // démo réapparaisse tel quel si on repasse en démo (même logique déjà
+  // adoptée pour hiddenGraphDomains).
+
+  const PINNED_KEY = "filiation-pinned-v1";
+  const RECENTS_KEY = "filiation-recents-v1";
+  const RECENTS_MAX = 8;
+
+  function loadIdList(key) {
+    try {
+      const raw = JSON.parse(localStorage.getItem(key) || "[]");
+      return Array.isArray(raw) ? raw : [];
+    } catch {
+      return [];
+    }
+  }
+  function saveIdList(key, list) {
+    try { localStorage.setItem(key, JSON.stringify(list)); } catch { /* dégrade en silence */ }
+  }
+
+  function isPinned(id) { return loadIdList(PINNED_KEY).includes(id); }
+
+  function togglePinned(id) {
+    let list = loadIdList(PINNED_KEY);
+    list = list.includes(id) ? list.filter((x) => x !== id) : [id, ...list];
+    saveIdList(PINNED_KEY, list);
+    renderSidebarShortcuts();
+    const btn = document.getElementById("pin-toggle");
+    if (btn) updatePinButton(btn, id);
+  }
+
+  let lastRecordedRecentId = null;
+  function recordRecentView(id) {
+    if (id === lastRecordedRecentId) return;
+    lastRecordedRecentId = id;
+    let list = loadIdList(RECENTS_KEY).filter((x) => x !== id);
+    list.unshift(id);
+    saveIdList(RECENTS_KEY, list.slice(0, RECENTS_MAX));
+    renderSidebarShortcuts();
+  }
+
+  function updatePinButton(btn, id) {
+    const pinned = isPinned(id);
+    btn.classList.toggle("is-pinned", pinned);
+    btn.textContent = pinned ? "★" : "☆";
+    btn.title = pinned ? "Retirer des épinglés" : "Épingler cet élément";
+    btn.setAttribute("aria-label", btn.title);
+    btn.setAttribute("aria-pressed", String(pinned));
+  }
+
+  function sidebarShortcutList(ids) {
+    const list = document.createElement("ul");
+    list.className = "sidebar-list";
+    ids.forEach((id) => {
+      const node = nodes[id];
+      const li = document.createElement("li");
+      const btn = document.createElement("button");
+      btn.className = "sidebar-item";
+      const dot = document.createElement("span");
+      dot.className = "sidebar-dot type-" + node.type;
+      btn.append(dot, document.createTextNode(node.name));
+      btn.title = node.name;
+      btn.addEventListener("click", () => navigateTo(id));
+      li.appendChild(btn);
+      if (isPinned(id)) {
+        const unpin = document.createElement("button");
+        unpin.type = "button";
+        unpin.className = "unpin-btn";
+        unpin.textContent = "✕";
+        unpin.title = "Retirer des épinglés";
+        unpin.addEventListener("click", (e) => { e.stopPropagation(); togglePinned(id); });
+        li.appendChild(unpin);
+      }
+      list.appendChild(li);
+    });
+    return list;
+  }
+
+  function renderSidebarShortcuts() {
+    const container = document.getElementById("sidebar-shortcuts");
+    if (!container) return;
+    container.innerHTML = "";
+    const visible = (id) => nodes[id] && canSeeNode(id);
+
+    const pinned = loadIdList(PINNED_KEY).filter(visible);
+    if (pinned.length) {
+      const group = document.createElement("div");
+      group.className = "sidebar-group";
+      const title = document.createElement("p");
+      title.className = "sidebar-group-title";
+      title.textContent = "Épinglés";
+      group.append(title, sidebarShortcutList(pinned));
+      container.appendChild(group);
+    }
+
+    const recents = loadIdList(RECENTS_KEY).filter((id) => visible(id) && !pinned.includes(id));
+    if (recents.length) {
+      const group = document.createElement("div");
+      group.className = "sidebar-group";
+      const title = document.createElement("p");
+      title.className = "sidebar-group-title";
+      title.textContent = "Récemment consultés";
+      group.append(title, sidebarShortcutList(recents));
+      container.appendChild(group);
+    }
   }
 
   buildSidebar(nodes);
@@ -38785,6 +38918,7 @@
 
     const node = nodes[id];
     renderBreadcrumb();
+    recordRecentView(id);
 
     for (const btnId in sidebarButtons) sidebarButtons[btnId].classList.toggle("active", btnId === id);
     const activeBtn = sidebarButtons[id];
@@ -38819,13 +38953,22 @@
       t.textContent = tag;
       badgeRow.appendChild(t);
     }
+    const nameRow = document.createElement("div");
+    nameRow.className = "node-name-row";
     const name = document.createElement("h2");
     name.className = "node-name";
     name.textContent = node.name;
+    const pinBtn = document.createElement("button");
+    pinBtn.type = "button";
+    pinBtn.id = "pin-toggle";
+    pinBtn.className = "icon-btn pin-btn";
+    pinBtn.addEventListener("click", () => togglePinned(id));
+    updatePinButton(pinBtn, id);
+    nameRow.append(name, pinBtn);
     const desc = document.createElement("p");
     desc.className = "node-desc";
     desc.textContent = node.description;
-    head.append(badgeRow, name, desc);
+    head.append(badgeRow, nameRow, desc);
     if (node.aiSuggestion) {
       const box = document.createElement("div");
       box.className = "ai-suggestion";
