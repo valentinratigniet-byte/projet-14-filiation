@@ -23,8 +23,11 @@
     --pipeline: #9b3d6f;
     --pipeline-soft: #f2dbe8;
     --ok: #3f8f43;
+    --ok-soft: #dff2e1;
     --warn: #b8791a;
+    --warn-soft: #f5e6c9;
     --fail: #b83c33;
+    --fail-soft: #f6dcd9;
     --shadow: 0 1px 2px rgba(20, 30, 25, 0.06), 0 6px 20px rgba(20, 30, 25, 0.05);
   }
 
@@ -50,8 +53,11 @@
       --pipeline: #e07db3;
       --pipeline-soft: #3a1f2e;
       --ok: #67c26a;
+      --ok-soft: #1c3322;
       --warn: #e0a83f;
+      --warn-soft: #3a2c18;
       --fail: #e2685f;
+      --fail-soft: #3a201e;
       --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
     }
   }
@@ -77,8 +83,11 @@
     --pipeline: #e07db3;
     --pipeline-soft: #3a1f2e;
     --ok: #67c26a;
+    --ok-soft: #1c3322;
     --warn: #e0a83f;
+    --warn-soft: #3a2c18;
     --fail: #e2685f;
+    --fail-soft: #3a201e;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
   }
 
@@ -107,10 +116,28 @@
     gap: 0.9rem;
   }
 
+  .brand-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.5rem; }
   .brand { display: flex; align-items: center; gap: 0.6rem; }
   .brand-mark { font-size: 1.5rem; line-height: 1; }
   .brand h1 { font-weight: 700; font-size: 1.15rem; margin: 0; letter-spacing: -0.01em; }
   .tagline { display: none; margin: 0.25rem 0 0; color: var(--text-muted); font-size: 0.85rem; max-width: 30ch; line-height: 1.5; }
+
+  .brand-actions { display: flex; gap: 0.3rem; flex-shrink: 0; }
+  .icon-btn {
+    width: 1.8rem;
+    height: 1.8rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    background: var(--surface);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    padding: 0;
+  }
+  .icon-btn:hover { color: var(--text); border-color: var(--accent); }
 
   .dataset-switch { display: flex; gap: 0.4rem; }
 
@@ -272,6 +299,23 @@
   .qs-result-meta { font-family: "IBM Plex Mono", monospace; font-size: 0.68rem; color: var(--text-muted); flex-shrink: 0; }
 
   .qs-empty { margin: 0; padding: 1.5rem; text-align: center; color: var(--text-muted); font-size: 0.85rem; }
+
+  .help-panel { padding: 1.1rem 1.3rem; gap: 0.9rem; }
+  .help-panel-header { display: flex; align-items: center; justify-content: space-between; }
+  .help-panel-header h2 { margin: 0; font-size: 1.05rem; }
+  .help-shortcuts { display: flex; flex-direction: column; gap: 0.55rem; margin: 0; }
+  .help-shortcuts > div { display: flex; align-items: baseline; gap: 0.8rem; }
+  .help-shortcuts dt { flex-shrink: 0; min-width: 5.5rem; margin: 0; display: flex; gap: 0.25rem; }
+  .help-shortcuts dd { margin: 0; color: var(--text-muted); font-size: 0.88rem; }
+  .help-note { margin: 0; padding-top: 0.7rem; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 0.82rem; line-height: 1.5; }
+  .help-shortcuts kbd, .help-note kbd {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.72rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.05rem 0.4rem;
+    background: var(--surface-alt);
+  }
 
   .sidebar-groups { display: flex; flex-direction: row; gap: 1.1rem; overflow-x: auto; padding-bottom: 0.15rem; }
   .sidebar-group { display: flex; flex-direction: row; align-items: center; gap: 0.3rem; flex-shrink: 0; }
@@ -561,7 +605,23 @@
     cursor: pointer;
   }
   .quality-overview-row:hover { background: var(--accent-soft); }
+  .quality-overview-row.status-fail { border-left: 3px solid var(--fail); padding-left: calc(0.7rem - 3px); }
+  .quality-overview-row.status-warn { border-left: 3px solid var(--warn); padding-left: calc(0.7rem - 3px); }
   .quality-overview-row .quality-dot { flex-shrink: 0; transform: translateY(-1px); }
+  .quality-overview-toolbar { display: flex; gap: 0.5rem; margin: 0.6rem 0; flex-wrap: wrap; }
+  .quality-overview-search {
+    flex: 1;
+    min-width: 160px;
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 0.82rem;
+    padding: 0.4rem 0.65rem;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+  .quality-overview-search::placeholder { color: var(--text-muted); }
+  .quality-overview-empty { color: var(--text-muted); font-size: 0.85rem; padding: 0.5rem 0.1rem; }
   .quality-overview-text { font-size: 0.85rem; color: var(--text-muted); }
   .quality-overview-text strong { color: var(--text); font-weight: 600; }
   .system-tables .chip:hover { background: var(--surface); border: 1px solid var(--accent); }
@@ -619,7 +679,14 @@
     color: var(--text-muted);
     margin: 0 0 1rem;
   }
-  .ollama-status.is-down { color: var(--fail); }
+  .ollama-status.is-down {
+    color: var(--fail);
+    background: var(--fail-soft);
+    border-left: 3px solid var(--fail);
+    border-radius: 6px;
+    padding: 0.65rem 0.85rem;
+    line-height: 1.5;
+  }
   .ollama-status.is-ok { display: none; }
 
   /* Grisées tant que bv-ollama n'a pas répondu au premier essai — le clic
@@ -902,8 +969,10 @@
     font-size: 0.8rem;
     color: var(--accent);
     background: var(--accent-soft);
+    border: 1px solid var(--accent);
     border-radius: 6px;
     padding: 0.4rem 0.75rem;
+    font-weight: 600;
     text-decoration: none;
   }
 
@@ -1147,11 +1216,17 @@
 
 <div class="app">
   <aside class="sidebar">
-    <div class="brand">
-      <span class="brand-mark" aria-hidden="true">🧬</span>
-      <div>
-        <h1>Filiation</h1>
-        <p class="tagline">Remontez n'importe quel élément jusqu'à sa donnée source.</p>
+    <div class="brand-row">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">🧬</span>
+        <div>
+          <h1>Filiation</h1>
+          <p class="tagline">Remontez n'importe quel élément jusqu'à sa donnée source.</p>
+        </div>
+      </div>
+      <div class="brand-actions">
+        <button type="button" class="icon-btn" id="theme-toggle" title="Thème : automatique" aria-label="Changer de thème">🌓</button>
+        <button type="button" class="icon-btn" id="help-btn" title="Raccourcis clavier (?)" aria-label="Afficher les raccourcis clavier">?</button>
       </div>
     </div>
     <div class="dataset-switch" role="tablist" aria-label="Jeu de données">
@@ -1176,6 +1251,23 @@
       <input type="text" id="qs-input" class="qs-input" placeholder="Rechercher un élément, tous domaines et systèmes confondus…" autocomplete="off">
       <ul class="qs-results" id="qs-results"></ul>
       <p class="qs-empty" id="qs-empty" hidden>Aucun résultat.</p>
+    </div>
+  </div>
+
+  <div class="qs-overlay" id="help-overlay" hidden>
+    <div class="qs-panel help-panel" role="dialog" aria-modal="true" aria-label="Raccourcis clavier">
+      <div class="help-panel-header">
+        <h2>Raccourcis clavier</h2>
+        <button type="button" class="icon-btn" id="help-close" aria-label="Fermer">✕</button>
+      </div>
+      <dl class="help-shortcuts">
+        <div><dt><kbd>/</kbd></dt><dd>Ouvrir la recherche globale</dd></div>
+        <div><dt><kbd>↑</kbd> <kbd>↓</kbd></dt><dd>Naviguer dans les résultats</dd></div>
+        <div><dt><kbd>Entrée</kbd></dt><dd>Sélectionner le résultat actif</dd></div>
+        <div><dt><kbd>Échap</kbd></dt><dd>Fermer une fenêtre superposée</dd></div>
+        <div><dt><kbd>?</kbd></dt><dd>Afficher cette aide</dd></div>
+      </dl>
+      <p class="help-note">Dans le Graphe complet : glisser pour déplacer, molette pour déplacer, <kbd>Ctrl</kbd>+molette pour zoomer, double-clic pour zoomer sur un point, clic/glisser sur la minimap pour recentrer.</p>
     </div>
   </div>
 
@@ -32706,6 +32798,7 @@
   }
 
   function openQuickSwitcher() {
+    document.getElementById("help-overlay").hidden = true;
     const overlay = document.getElementById("qs-overlay");
     overlay.hidden = false;
     const input = document.getElementById("qs-input");
@@ -32731,16 +32824,32 @@
     else if (e.key === "Escape") { e.preventDefault(); closeQuickSwitcher(); }
   });
 
+  function openHelp() {
+    closeQuickSwitcher();
+    document.getElementById("help-overlay").hidden = false;
+  }
+  function closeHelp() {
+    document.getElementById("help-overlay").hidden = true;
+  }
+  document.getElementById("help-btn").addEventListener("click", openHelp);
+  document.getElementById("help-close").addEventListener("click", closeHelp);
+  document.getElementById("help-overlay").addEventListener("click", (e) => {
+    if (e.target.id === "help-overlay") closeHelp();
+  });
+
   document.addEventListener("keydown", (e) => {
     const overlay = document.getElementById("qs-overlay");
-    if (e.key === "/" && overlay.hidden) {
-      const active = document.activeElement;
-      const tag = (active && active.tagName || "").toLowerCase();
-      const isTyping = tag === "input" || tag === "textarea" || tag === "select" || (active && active.isContentEditable);
-      if (!isTyping) { e.preventDefault(); openQuickSwitcher(); }
-    } else if (e.key === "Escape" && !overlay.hidden) {
-      closeQuickSwitcher();
+    const help = document.getElementById("help-overlay");
+    if (e.key === "Escape") {
+      if (!help.hidden) { closeHelp(); return; }
+      if (!overlay.hidden) { closeQuickSwitcher(); return; }
     }
+    const active = document.activeElement;
+    const tag = (active && active.tagName || "").toLowerCase();
+    const isTyping = tag === "input" || tag === "textarea" || tag === "select" || (active && active.isContentEditable);
+    if (isTyping || !overlay.hidden || !help.hidden) return;
+    if (e.key === "/") { e.preventDefault(); openQuickSwitcher(); }
+    else if (e.key === "?") { e.preventDefault(); openHelp(); }
   });
 
   document.querySelectorAll(".ds-btn").forEach((btn) => {
@@ -34186,13 +34295,69 @@
       : "Aucune alerte sur ce jeu de données.";
     card.appendChild(meta);
 
-    if (issues.length) {
-      const list = document.createElement("div");
-      list.className = "quality-overview-list";
-      issues.forEach((issue) => {
+    if (!issues.length) return card;
+
+    // Barre de filtre (recherche texte + chips de sévérité, réutilise
+    // .domain-chip/.is-off déjà défini pour le filtre domaine du Graphe
+    // complet) : nécessaire dès qu'un jeu de données pousse ce total à
+    // plusieurs dizaines d'alertes, où défiler une liste plate ne suffit plus.
+    let severityFilter = "all";
+    let searchQuery = "";
+
+    const toolbar = document.createElement("div");
+    toolbar.className = "quality-overview-toolbar";
+    const search = document.createElement("input");
+    search.type = "search";
+    search.className = "quality-overview-search";
+    search.placeholder = "Filtrer les alertes (nom, contrôle)…";
+    search.setAttribute("aria-label", "Filtrer les alertes qualité");
+    toolbar.appendChild(search);
+
+    const chipDefs = [
+      { key: "all", label: "Toutes (" + issues.length + ")" },
+      { key: "fail", label: "Échecs (" + nFail + ")" },
+      { key: "warn", label: "Avertissements (" + nWarn + ")" },
+    ].filter((c) => c.key === "all" || issues.some((i) => i.status === c.key));
+    const chipEls = {};
+    chipDefs.forEach((c) => {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "domain-chip";
+      if (c.key !== "all") chip.classList.add("is-off");
+      chip.textContent = c.label;
+      chip.addEventListener("click", () => {
+        severityFilter = c.key;
+        Object.entries(chipEls).forEach(([k, el]) => el.classList.toggle("is-off", k !== c.key));
+        renderRows();
+      });
+      chipEls[c.key] = chip;
+      toolbar.appendChild(chip);
+    });
+    card.appendChild(toolbar);
+
+    const list = document.createElement("div");
+    list.className = "quality-overview-list";
+    card.appendChild(list);
+
+    function renderRows() {
+      const q = searchQuery.trim().toLowerCase();
+      const filtered = issues.filter((issue) => {
+        if (severityFilter !== "all" && issue.status !== severityFilter) return false;
+        if (!q) return true;
+        return issue.name.toLowerCase().includes(q) || issue.label.toLowerCase().includes(q) || (issue.note || "").toLowerCase().includes(q);
+      });
+      list.innerHTML = "";
+      if (!filtered.length) {
+        const empty = document.createElement("p");
+        empty.className = "quality-overview-empty";
+        empty.textContent = "Aucune alerte ne correspond à ce filtre.";
+        list.appendChild(empty);
+        return;
+      }
+      filtered.forEach((issue) => {
         const row = document.createElement("button");
         row.type = "button";
-        row.className = "quality-overview-row";
+        row.className = "quality-overview-row status-" + issue.status;
         const dot = document.createElement("span");
         dot.className = "quality-dot status-" + issue.status;
         const text = document.createElement("span");
@@ -34204,8 +34369,11 @@
         row.addEventListener("click", () => navigateTo(issue.id));
         list.appendChild(row);
       });
-      card.appendChild(list);
     }
+
+    search.addEventListener("input", (e) => { searchQuery = e.target.value; renderRows(); });
+    renderRows();
+
     return card;
   }
 
@@ -34679,6 +34847,35 @@
 
     root.appendChild(relGrid);
   }
+
+  // ---------- Thème (clair/sombre/automatique) ----------
+
+  const THEME_KEY = "filiation-theme-v1";
+  const THEME_CYCLE = ["auto", "light", "dark"];
+  const THEME_ICON = { auto: "🌓", light: "☀️", dark: "🌙" };
+  const THEME_LABEL = { auto: "Thème : automatique (suit le système)", light: "Thème : clair", dark: "Thème : sombre" };
+  let currentTheme = "auto";
+
+  function applyTheme(theme) {
+    currentTheme = theme;
+    if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
+    else delete document.documentElement.dataset.theme;
+    const btn = document.getElementById("theme-toggle");
+    if (btn) { btn.textContent = THEME_ICON[theme]; btn.title = THEME_LABEL[theme]; }
+  }
+
+  (function restoreTheme() {
+    let saved = "auto";
+    try { saved = localStorage.getItem(THEME_KEY) || "auto"; } catch { /* dégrade en silence */ }
+    if (!THEME_CYCLE.includes(saved)) saved = "auto";
+    applyTheme(saved);
+  })();
+
+  document.getElementById("theme-toggle").addEventListener("click", () => {
+    const next = THEME_CYCLE[(THEME_CYCLE.indexOf(currentTheme) + 1) % THEME_CYCLE.length];
+    applyTheme(next);
+    try { localStorage.setItem(THEME_KEY, next); } catch { /* dégrade en silence */ }
+  });
 
   // ---------- Persistance (rôle, jeu de données, dernier nœud) ----------
 
