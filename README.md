@@ -215,7 +215,7 @@ qui peut agir — pas si l'action est sûre.
 | Instantanés historisés | 2 | 1 extraction réelle + 1 exemple simulé (illustratif, pour démontrer la vue Dérive) |
 | Lignes en base, couche `raw` (projet réel) | 168 741 | comptage réel via psycopg2, pas une estimation — `fct_sales` seul : 121 331 |
 | Relations inférées | 4 | convention de nommage `xxx_id` → table `xxx`, sur les 5 tables `raw` (1 système) |
-| Mesures DAX (Power BI, Projets 09 + 13) | 34 | extraites de 2 modèles réels via MCP `powerbi-modeling` — 17 mesures dupliquées entre les deux modèles sous le même nom, dont **2 divergent réellement** (formule différente, signalées "fail") et 15 sont cohérentes |
+| Mesures DAX (Power BI, Projets 09 + 13) | 34 | extraites de 2 modèles réels via MCP `powerbi-modeling` — 17 mesures dupliquées entre les deux modèles sous le même nom, dont **1 diverge réellement** (`CA moyenne 3M`, formule différente, signalée "fail") et 16 sont cohérentes |
 | Workflows n8n (pipeline) | 5 | lus depuis `projet-baptiste-valentin/n8n/workflows/*.json`, aucune connexion live |
 | Nœuds réels au total (jeu "Projet réel", fusionné) | 80 | dbt_ecommerce + bv-postgres-dbtdev + bv-mysql-crm + Power BI Projets 09+13 (34 mesures) + n8n (5 pipelines) + Prefect (2 flows) |
 
@@ -354,14 +354,15 @@ python scripts/find_duplicate_powerbi_measures.py --migrate --apply
 ```
 
 Testé en réel entre les Projets 09 et 13 (17 mesures chacun, même socle) :
-17 mesures partagent un nom entre les deux modèles, dont **2 divergent
-réellement** (`CA moyenne 3M`, `Rang produit` au départ — puis correction
-d'un faux positif de normalisation, voir plus bas) et 15 sont cohérentes.
-Après correction de `normalize_expr` (un espacement autour d'une virgule,
-`, ,` vs `,,` dans un `RANKX`, empêchait de reconnaître deux formules
-DAX identiques), seule `CA moyenne 3M` reste une divergence authentique —
-`Rang produit` a la même logique dans les deux modèles, juste un
-espacement différent.
+17 mesures partagent un nom entre les deux modèles, dont **1 diverge
+réellement** (`CA moyenne 3M`, formule différente) et 16 sont cohérentes.
+
+`Rang produit` a d'abord semblé divergent lui aussi, avant la correction
+de `normalize_expr` : un espacement autour d'une virgule (`, ,` vs `,,`
+dans un `RANKX`) empêchait de reconnaître que les deux modèles calculent
+exactement la même chose. Faux positif corrigé, pas une divergence
+authentique — laissé volontairement dans l'historique ci-dessous plutôt
+que masqué, l'erreur de détection faisait partie du travail.
 
 ## 🔗 Pipelines n8n & Prefect
 

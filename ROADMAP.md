@@ -1,6 +1,6 @@
 # Feuille de route
 
-État au 2026-08-24 (45 commits). Quatre chantiers identifiés à l'origine :
+État au 2026-08-24 (47 commits). Quatre chantiers identifiés à l'origine :
 1) durcir le raccordement aux bases, 2) compléter les informations qu'on en
 extrait, 3) étendre le lignage jusqu'à la couche Power BI, 4) connecter
 l'outil au reste de l'écosystème réel (LLM, orchestrateur de pipelines,
@@ -656,8 +656,9 @@ accrocs trouvés et corrigés :
    en migrant les 34 mesures déjà extraites : `normalize_expr` ratait
    `[CA], , DESC` vs `[CA],, DESC` (espace collé à une virgule autour d'un
    argument RANKX vide) — corrigé, "Rang produit" n'est plus signalé à
-   tort. Sur le jeu réel : **2 divergences authentiques** ("CA moyenne
-   3M"), 32 duplications reclassées cohérentes.
+   tort. Sur le jeu réel, des 17 mesures partageant un nom entre les 2
+   modèles Power BI : **1 divergence authentique** ("CA moyenne 3M"), 16
+   duplications cohérentes (34 pastilles au total, une par nœud).
 2. La carte "Alertes qualité" (vue d'ensemble sans clic nœud par nœud) était
    masquée pour le rôle PDG, alors que c'est exactement son besoin — nouveau
    rôle `systemesOverviewOnly` : onglet Systèmes ouvert, mais restreint à
@@ -709,4 +710,4 @@ vérifier par Valentin avant activation.
 Chaque étape de ce round vérifiée en jsdom (suite à 7 fichiers) + script(s)
 Playwright dédié(s) + tous les scripts précédents (13 au total en fin de
 round) + captures d'écran clair/sombre/mobile — sans régression à aucune
-étape. Repo à jour, 45 commits.
+étape. Repo à jour, 47 commits (dont ce correctif de comptage).
