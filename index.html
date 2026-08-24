@@ -374,7 +374,7 @@
 
   .content { padding: 1.75rem 1.5rem 4rem; max-width: 760px; width: 100%; margin: 0 auto; }
 
-  .view-switch { display: flex; gap: 0.4rem; margin-bottom: 1.25rem; }
+  .view-switch { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1.25rem; }
 
   .view-btn {
     font-family: "IBM Plex Mono", monospace;
@@ -644,6 +644,8 @@
     text-transform: uppercase;
     letter-spacing: 0.07em;
     color: var(--text-muted);
+    flex: 1 1 220px;
+    min-width: 0;
   }
 
   .derive-toolbar select {
@@ -656,7 +658,9 @@
     color: var(--text);
     border: 1px solid var(--border);
     border-radius: 6px;
-    min-width: 220px;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
   }
 
   .derive-arrow { color: var(--text-muted); padding-bottom: 0.5rem; }
@@ -718,7 +722,7 @@
   .derive-mark.remove { color: var(--fail); }
   .derive-mark.change { color: var(--warn); }
 
-  .derive-row code { font-family: "IBM Plex Mono", monospace; font-size: 0.85rem; }
+  .derive-row code { font-family: "IBM Plex Mono", monospace; font-size: 0.85rem; overflow-wrap: break-word; min-width: 0; }
 
   .fiche-nav-row { display: flex; align-items: center; gap: 0.7rem; }
 
