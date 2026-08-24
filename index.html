@@ -329,6 +329,39 @@
 
   .zoom-controls button:hover { color: var(--text); border-color: var(--accent); }
 
+  .graph-domain-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin: 0.6rem 0 0.5rem;
+  }
+
+  .graph-domain-bulk, .graph-domain-mode { display: flex; gap: 0.3rem; }
+
+  .graph-domain-btn, .graph-mode-btn {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.3rem 0.55rem;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-muted);
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .graph-domain-btn:hover, .graph-mode-btn:hover { color: var(--text); border-color: var(--accent); }
+
+  .graph-mode-btn.active {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+
   .graph-domain-filter { display: flex; flex-wrap: wrap; gap: 0.35rem; }
 
   .domain-chip {
@@ -1043,6 +1076,16 @@
         </div>
       </div>
       <p class="graph-hint">Glisser pour déplacer · molette pour déplacer, <kbd>Ctrl</kbd>+molette pour zoomer · double-clic pour zoomer sur un point</p>
+      <div class="graph-domain-toolbar">
+        <div class="graph-domain-bulk">
+          <button type="button" id="graph-domain-all" class="graph-domain-btn">Tout sélectionner</button>
+          <button type="button" id="graph-domain-none" class="graph-domain-btn">Tout désélectionner</button>
+        </div>
+        <div class="graph-domain-mode" role="tablist" aria-label="Mode de sélection des domaines">
+          <button type="button" class="graph-mode-btn active" data-mode="multi" aria-pressed="true">Choix multiple</button>
+          <button type="button" class="graph-mode-btn" data-mode="single" aria-pressed="false">Choix unique</button>
+        </div>
+      </div>
       <div class="graph-domain-filter" id="graph-domain-filter"></div>
       <div class="graph-canvas" id="graph-canvas"></div>
       <div class="graph-infobar" id="graph-infobar"></div>
@@ -33037,10 +33080,13 @@
   let graphFocusId = null;
   let impactMode = false;
   let hiddenGraphDomains = new Set();
+  let graphFilterMode = "multi"; // "multi" : chaque chip s'active/désactive indépendamment. "single" : cliquer un chip isole ce domaine (comme un bouton radio).
+  let currentGraphDomains = [];
 
   function renderGraphDomainFilter(domains) {
     const el = document.getElementById("graph-domain-filter");
     if (!el) return;
+    currentGraphDomains = domains;
     el.innerHTML = "";
     domains.forEach((d) => {
       const btn = document.createElement("button");
@@ -33049,12 +33095,36 @@
       btn.textContent = d;
       btn.setAttribute("aria-pressed", String(!hiddenGraphDomains.has(d)));
       btn.addEventListener("click", () => {
-        if (hiddenGraphDomains.has(d)) hiddenGraphDomains.delete(d); else hiddenGraphDomains.add(d);
+        if (graphFilterMode === "single") {
+          hiddenGraphDomains = new Set(domains.filter((x) => x !== d));
+        } else if (hiddenGraphDomains.has(d)) {
+          hiddenGraphDomains.delete(d);
+        } else {
+          hiddenGraphDomains.add(d);
+        }
         renderGraphView();
       });
       el.appendChild(btn);
     });
   }
+
+  document.getElementById("graph-domain-all").addEventListener("click", () => {
+    hiddenGraphDomains.clear();
+    renderGraphView();
+  });
+  document.getElementById("graph-domain-none").addEventListener("click", () => {
+    hiddenGraphDomains = new Set(currentGraphDomains);
+    renderGraphView();
+  });
+  document.querySelectorAll(".graph-mode-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      graphFilterMode = btn.dataset.mode;
+      document.querySelectorAll(".graph-mode-btn").forEach((b) => {
+        b.classList.toggle("active", b === btn);
+        b.setAttribute("aria-pressed", String(b === btn));
+      });
+    });
+  });
   let zoomScale = 1, panX = 0, panY = 0;
 
   applyRoleTabVisibility();
