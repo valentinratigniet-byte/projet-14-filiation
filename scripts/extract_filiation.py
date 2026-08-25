@@ -156,6 +156,33 @@ def fetch_row_counts(profile_path: Path, tables: list[tuple[str, str]]) -> dict[
     return counts
 
 
+# Noms de colonnes (exacts, normalisés en minuscules) évoquant une donnée
+# personnelle directe. Volontairement large : mieux vaut sur-marquer pour le
+# rôle RH (voir/écarter un faux positif) que manquer une vraie donnée
+# personnelle (ex. "responsable" d'un centre de coût, un nom d'employé réel
+# trouvé en dogfooding le 2026-08-25). Reste une heuristique de nommage, pas
+# un vrai classifieur RGPD -- documenté comme tel dans le README.
+PII_COLUMN_HINTS = {
+    "email", "nom", "prenom", "first_name", "last_name", "full_name",
+    "responsable", "telephone", "phone", "adresse", "address",
+    "salaire", "date_naissance", "birth_date",
+}
+
+
+def tag_personal_data(nodes: dict[str, Any]) -> None:
+    """Marque RGPD : toute table dont une colonne correspond à PII_COLUMN_HINTS.
+    Appelée par extract_filiation.py (projets dbt) ET scan_database.py (tout
+    système via SQLAlchemy) -- avant ce correctif, seul extract_filiation.py
+    marquait quoi que ce soit, donc tout ce qui arrivait via scan_database.py
+    (--merge, ex. bv-postgres-dbtdev/bv-mysql-crm) restait invisible au rôle RH."""
+    for n in nodes.values():
+        cols = {c["name"].lower() for c in n.get("columns", [])}
+        if cols & PII_COLUMN_HINTS:
+            tags = n.get("tags", [])
+            if "Donnée personnelle (RGPD)" not in tags:
+                n["tags"] = tags + ["Donnée personnelle (RGPD)"]
+
+
 def infer_fk_guesses(nodes: dict[str, Any]) -> None:
     """Relations inférées par convention de nommage (colonne `xxx_id` -> table
     `xxx`/`xxxs` du même système) entre tables brutes. PAS des contraintes
@@ -246,12 +273,7 @@ def extract_nodes(target_dir: Path) -> tuple[dict[str, Any], str]:
         }
 
     infer_fk_guesses(nodes)
-
-    # Marquage RGPD : toute table portant une colonne "email" (donnée personnelle
-    # réelle du projet), pour la démo du rôle RH dans l'outil.
-    for n in nodes.values():
-        if any(c["name"].lower() == "email" for c in n.get("columns", [])):
-            n["tags"] = n.get("tags", []) + ["Donnée personnelle (RGPD)"]
+    tag_personal_data(nodes)
 
     row_count_targets = [tuple(n["source"]["table"].split(".")) if n["type"] == "raw" else tuple(n["relation"].split(".")[1:]) for n in nodes.values()]
     row_counts = fetch_row_counts(target_dir.parent / "profiles.yml", row_count_targets)

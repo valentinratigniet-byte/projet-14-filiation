@@ -711,3 +711,61 @@ Chaque étape de ce round vérifiée en jsdom (suite à 7 fichiers) + script(s)
 Playwright dédié(s) + tous les scripts précédents (13 au total en fin de
 round) + captures d'écran clair/sombre/mobile — sans régression à aucune
 étape. Repo à jour, 47 commits (dont ce correctif de comptage).
+
+## 🕵️ Post-roadmap, suite : dogfooding rôle RH, Exploitation et navigation clavier seul (2026-08-25)
+
+Trois angles jamais dogfoodés jusqu'ici (Playwright, pas juste lecture de
+code). Deux vrais bugs trouvés et corrigés, un troisième point de rôle
+challengé et corrigé ; un faux positif écarté après vérification.
+
+1. **Angle mort RGPD réel pour le rôle RH.** Le marquage
+   `Donnée personnelle (RGPD)` ne venait que d'`extract_filiation.py`, sur
+   une seule heuristique (colonne nommée exactement `email`) — jamais posé
+   par `scan_database.py`. Tout ce qui est arrivé dans le jeu réel via
+   `--merge` (bv-postgres-dbtdev, bv-mysql-crm) restait donc invisible au
+   rôle RH par construction, pas par accident. Vérifié en conditions
+   réelles : la table `dim_centre_cout` (fusionnée depuis
+   bv-postgres-dbtdev) a une colonne `responsable` — un nom de personne
+   réel (confirmé par la suggestion IA générée dessus) — jamais taguée.
+   Corrigé : `tag_personal_data()` extraite dans `extract_filiation.py`
+   (heuristique élargie à un petit ensemble de noms de colonnes évocateurs
+   — `responsable`, `nom`, `prenom`, `telephone`, `adresse`, `salaire`...,
+   volontairement large car sur-marquer pour RH coûte moins cher que
+   manquer une vraie donnée personnelle) et appelée par les **deux**
+   scripts d'extraction. Rejouée une fois sur le jeu déjà extrait (sans
+   reconnexion live) pour retagger `dim_centre_cout` dans `index.html` —
+   `dim_centre_cout` a bien rejoint les 3 nœuds déjà tagués. Nouvelle
+   assertion dans `test_scan_database.py` (une colonne `responsable`
+   déclenche le marquage, `name`/`category`/`price` d'une table produit
+   générique ne le déclenchent pas — garde-fou contre le faux positif).
+2. **Fermer un panneau (recherche `/` ou aide `?`) perdait le focus
+   clavier.** `closeQuickSwitcher()`/`closeHelp()` masquaient l'overlay
+   sans jamais redonner le focus à l'élément qui l'avait ouvert —
+   confirmé reproductible (localStorage vidé, focus réel établi avant
+   test) : le focus tombait sur `<body>`, obligeant un utilisateur clavier
+   à retaper Tab depuis le tout début de la page. Corrigé : deux variables
+   dédiées (`qsReturnFocus`/`helpReturnFocus`, pas une seule partagée —
+   `openHelp()` appelle `closeQuickSwitcher()` par sécurité même quand la
+   recherche n'était pas ouverte, ce qui aurait consommé/effacé une
+   variable commune avant que `closeHelp()` ait pu s'en servir) ;
+   `openHelp()` déplace aussi désormais le focus sur le bouton fermer du
+   panneau à l'ouverture (jusqu'ici aucun focus n'entrait dans l'overlay
+   aide, ni au clic ni via `?`).
+3. **Rôle Exploitation sans accès au signalement.** Il voit les alertes
+   qualité mais n'avait aucun moyen d'agir dessus (`correction: false`),
+   alors que c'est le rôle qui les détecte en premier. Challengé et
+   confirmé avec Valentin : `correction: true` pour Exploitation, RH reste
+   inchangé (`false`, hors périmètre pour ce rôle).
+
+**Écarté après vérification** (pas un bug produit) : l'ordre de tabulation
+depuis le haut de page semblait sauter les contrôles d'en-tête lors du tout
+premier Tab d'une page fraîchement chargée — reproduit uniquement quand
+aucun clic réel n'avait encore eu lieu sur la page (artefact
+Playwright/CDP sur la toute première frappe clavier synthétique, absent
+dès qu'un clic établit un focus page réel au préalable). Documenté ici
+pour ne pas le re-suspecter sans raison la prochaine fois.
+
+Vérifié : balayage complet 5 rôles × 2 jeux de données × vues visibles
+(0 erreur JS), scénarios clavier dédiés (ouverture/fermeture des deux
+panneaux par les 3 chemins — raccourci, bouton, clic extérieur/✕), suite
+Python complète (5 fichiers, `test_scan_database.py` étendu). Repo à jour.

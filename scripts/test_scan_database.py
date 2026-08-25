@@ -27,6 +27,11 @@ def main() -> None:
             CREATE VIEW v_cheap_product AS SELECT * FROM product WHERE price < 10;
             CREATE INDEX idx_product_category ON product(category);
             INSERT INTO product (name, price, category) VALUES ('Widget', 5, 'toys'), ('Gadget', 3, NULL);
+            CREATE TABLE centre_cout (
+                centre_cout_id INTEGER PRIMARY KEY,
+                libelle TEXT,
+                responsable TEXT
+            );
         """)
         conn.commit()
         conn.close()
@@ -54,6 +59,17 @@ def main() -> None:
             idx["name"] == "idx_product_category" and idx["columns"] == ["category"]
             for idx in product.get("indexes", [])
         ), "explicit index captured with name + columns"
+
+        # Trouvé en dogfooding le rôle RH (2026-08-25) : scan_database.py ne posait
+        # aucun marquage RGPD, contrairement à extract_filiation.py -- toute donnée
+        # personnelle fusionnée via --merge (bv-postgres-dbtdev, bv-mysql-crm)
+        # restait invisible au rôle RH. Vérifie ici que tag_personal_data() est
+        # bien appelé par scan() et distingue une vraie colonne personnelle
+        # ("responsable", un nom de personne réel trouvé en pratique) d'un
+        # libellé métier générique ("libelle", "name", "category").
+        centre_cout = by_name["centre_cout"]
+        assert "Donnée personnelle (RGPD)" in centre_cout.get("tags", []), "colonne 'responsable' déclenche le marquage RGPD"
+        assert "Donnée personnelle (RGPD)" not in product.get("tags", []), "pas de faux positif sur name/category/price"
 
     print("OK — scan_database.py chantier-2 introspection verified.")
 

@@ -47,7 +47,7 @@ import yaml
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import OperationalError
 
-from extract_filiation import SNAPSHOTS_DIR, build_snapshots_block, infer_fk_guesses, save_snapshot, splice, to_js_const
+from extract_filiation import SNAPSHOTS_DIR, build_snapshots_block, infer_fk_guesses, save_snapshot, splice, tag_personal_data, to_js_const
 
 DEFAULT_HTML = Path(__file__).resolve().parent.parent / "index.html"
 CONNECTIONS_FILE = Path(__file__).resolve().parent.parent / "connections.yml"
@@ -286,6 +286,7 @@ def scan(url: str, schemas: list[str] | None, tables: list[str] | None = None, c
     # Complète, table par table sans contrainte réelle, une heuristique de nommage
     # (xxx_id -> table xxx/xxxs) — utilisée par la vue Systèmes (mini schéma relationnel).
     infer_fk_guesses(nodes)
+    tag_personal_data(nodes)
     engine.dispose()
     return nodes
 
