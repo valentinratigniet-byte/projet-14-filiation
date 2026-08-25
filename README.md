@@ -5,7 +5,7 @@
 > **Filiation** répond directement dans l'outil : on clique sur n'importe quel
 > élément — un indicateur, une colonne, une table — et on voit sa formule ou
 > son SQL, puis on remonte, niveau par niveau, jusqu'à la donnée brute et sa
-> source. Le [Projet 11](../projet-11-gouvernance) documente déjà le lignage
+> source. Le [Projet 11](https://github.com/valentinratigniet-byte/projet-11-gouvernance) documente déjà le lignage
 > techniquement (dbt docs, pensé pour l'équipe data) ; celui-ci l'expose sous
 > une forme cliquable, pensée pour quelqu'un qui ne lit pas de DAG.
 
@@ -28,7 +28,7 @@
    pour `scan_database.py`) : `docker ps --filter name=p07_ecommerce_db` —
    si arrêté, `docker start p07_ecommerce_db` (port 5433, identifiants de
    démo non secrets dans
-   [`projet-10-pipeline-elt/dbt_ecommerce/profiles.yml`](../projet-10-pipeline-elt/dbt_ecommerce/profiles.yml)).
+   [`projet-10-pipeline-elt/dbt_ecommerce/profiles.yml`](https://github.com/valentinratigniet-byte/projet-10-pipeline-elt/blob/main/dbt_ecommerce/profiles.yml)).
 2. **Dépendances Python** (une fois par environnement) :
    `pip install -r requirements.txt`.
 3. **Vérifier que tout tourne encore** :
@@ -55,12 +55,12 @@ au choix dans la barre latérale :
   concept sans dépendre d'un vrai projet.
 - **Projet réel** — rien n'est inventé, tout vient d'une introspection
   réelle, fusionnée depuis **5 systèmes indépendants** : le
-  [Projet 10](../projet-10-pipeline-elt) (`dbt_ecommerce`, manifest/catalog/
+  [Projet 10](https://github.com/valentinratigniet-byte/projet-10-pipeline-elt) (`dbt_ecommerce`, manifest/catalog/
   run_results), deux bases du projet partagé
-  [projet-baptiste-valentin](../../projet-baptiste-valentin)
+  [projet-baptiste-valentin](https://github.com/valentinratigniet-byte/projet-baptiste-valentin)
   (`bv-postgres-dbtdev`, `bv-mysql-crm`), deux modèles Power BI réels
-  ([Projet 09](../projet-09-dashboard-powerbi),
-  [Projet 13](../projet-13-entrepot-central-bigquery)) et 5 workflows n8n
+  ([Projet 09](https://github.com/valentinratigniet-byte/projet-09-dashboard-powerbi),
+  [Projet 13](https://github.com/valentinratigniet-byte/projet-13-entrepot-central-bigquery)) et 5 workflows n8n
   réels du même projet partagé, et 2 flows Prefect réels du portfolio lui-même
   (Projets 04 et 10) — 80 nœuds au total, un système par carte dans la vue
   Systèmes.
@@ -200,7 +200,7 @@ chemin d'écriture caché :
   façon au run suivant.
 
 Principe de gouvernance détaillé dans le
-[Projet 11](../projet-11-gouvernance) : un ERP applique des règles métier
+[Projet 11](https://github.com/valentinratigniet-byte/projet-11-gouvernance) : un ERP applique des règles métier
 qu'une écriture directe en base contournerait, et l'authentification règle
 qui peut agir — pas si l'action est sûre.
 
@@ -391,7 +391,7 @@ distincts suffisent à les distinguer) :
   n'exige pas d'authentification par mot de passe en usage local (profil
   "ephemeral", base SQLite dans `~/.prefect/`), contrairement à n8n.
   Nécessite le paquet `prefect`, absent du python système : s'exécute avec
-  le venv de [Projet 10](../projet-10-pipeline-elt), pas avec celui des
+  le venv de [Projet 10](https://github.com/valentinratigniet-byte/projet-10-pipeline-elt), pas avec celui des
   autres scripts de ce dossier.
   ```bash
   ../projet-10-pipeline-elt/.venv/Scripts/python.exe scripts/extract_prefect.py
