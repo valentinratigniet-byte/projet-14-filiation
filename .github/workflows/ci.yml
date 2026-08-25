@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  self-checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: scripts
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r ../requirements.txt
+
+      - name: test_scan_database.py (SQLite jetable, sans serveur)
+        run: python test_scan_database.py
+
+      - name: test_extract_prefect.py (logique pure, sans connexion live)
+        run: python test_extract_prefect.py
+
+      - name: test_extract_powerbi.py (parsing DAX, sans modèle live)
+        run: python test_extract_powerbi.py
+
+      - name: test_find_duplicate_powerbi_measures.py (dumps synthétiques)
+        run: python test_find_duplicate_powerbi_measures.py
+
+      - name: test_extract_n8n.py (workflows synthétiques)
+        run: python test_extract_n8n.py

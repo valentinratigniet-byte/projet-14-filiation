@@ -1,5 +1,7 @@
 # Projet 14 — Filiation : documentation vivante et interactive de traçabilité
 
+[![CI](https://github.com/valentinratigniet-byte/projet-14-filiation/actions/workflows/ci.yml/badge.svg)](https://github.com/valentinratigniet-byte/projet-14-filiation/actions/workflows/ci.yml)
+
 > On demande souvent d'où vient un chiffre. La réponse habituelle est un
 > classeur Excel qui date de six mois, ou un aller-retour avec l'équipe data.
 > **Filiation** répond directement dans l'outil : on clique sur n'importe quel
