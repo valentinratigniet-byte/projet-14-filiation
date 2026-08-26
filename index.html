@@ -282,7 +282,10 @@
     color: var(--text);
     width: 100%;
   }
-  .qs-input:focus { outline: none; }
+  /* .qs-panel est en overflow:hidden (coins arrondis) -- un anneau de focus
+     natif (dessiné hors de la boîte par défaut) y serait quasi entièrement
+     rogné. outline-offset négatif le ramène à l'intérieur. */
+  .qs-input:focus { outline: 2px solid var(--accent); outline-offset: -2px; }
   .qs-input::placeholder { color: var(--text-muted); }
 
   .qs-results { list-style: none; margin: 0; padding: 0.4rem; overflow-y: auto; }
