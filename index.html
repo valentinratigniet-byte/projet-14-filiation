@@ -40797,7 +40797,7 @@
   function prepareDataset(ds) {
     for (const id in ds) {
       const node = ds[id];
-      if (!node.deps) node.deps = node.formula ? [...node.formula.matchAll(/\{(\w+)\}/g)].map((m) => m[1]) : [];
+      if (!node.deps) node.deps = node.formula ? [...new Set([...node.formula.matchAll(/\{(\w+)\}/g)].map((m) => m[1]))] : [];
     }
   }
   prepareDataset(demoNodes);
@@ -43194,11 +43194,21 @@
         root.appendChild(queryHintWidget(node.queryHint, node.source ? node.source.system : node.relation));
         if (node.updateTemplate) root.appendChild(updateTemplateWidget(node.updateTemplate));
       } else if (node.source) {
+        // Ce repli sert aussi bien la démo (systèmes fictifs) que le jeu réel
+        // pour les types sans fichier git ni requête de lecture (mesures DAX,
+        // pipelines n8n/Prefect) -- un modèle Power BI ou un workflow n'a pas
+        // d'"issue" ni de table à corriger par UPDATE. Le libellé doit rester
+        // honnête selon le jeu actif : "Démo" sur un système fictif serait
+        // trompeur sur une vraie alerte du jeu réel (ex. mesures Power BI
+        // divergentes entre rapports, trouvé en dogfooding le 2026-08-26).
+        const isRealButUncorrectable = activeDatasetKey === "real";
         const link = document.createElement("button");
         link.className = "ext-link";
         link.type = "button";
         link.disabled = true;
-        link.title = "Démo : pointerait vers la fiche d'édition native dans " + node.source.system;
+        link.title = isRealButUncorrectable
+          ? "Aucune correction directe possible depuis cet outil (pas de fichier versionné) — ouvrir le modèle dans " + node.source.system
+          : "Démo : pointerait vers la fiche d'édition native dans " + node.source.system;
         link.textContent = "↗ Ouvrir dans " + node.source.system;
         root.appendChild(link);
       }
