@@ -176,6 +176,13 @@
     border-radius: 7px;
     width: 100%;
   }
+  /* couleur/fond explicites ci-dessus -> le rendu "désactivé" natif ne suffit
+     pas toujours à se voir ; le rôle verrouillé doit rester visuellement net. */
+  .role-picker select:disabled {
+    color: var(--text-muted);
+    cursor: not-allowed;
+    opacity: 0.7;
+  }
 
   .role-note {
     margin: 0.4rem 0 0;
@@ -41222,6 +41229,21 @@
   roleSelect.value = currentRole;
   document.getElementById("role-note").textContent = ROLES[currentRole].note;
 
+  // Seul l'administrateur peut changer de rôle -- pas l'inverse (demandé par
+  // Valentin le 2026-08-26). Cet outil n'a ni backend ni session par
+  // utilisateur (page statique, un seul rôle affiché à la fois, cf. l'alerte
+  // "NON sécurisé" plus haut) : le rôle courant EST "l'utilisateur affiché",
+  // donc "changer le rôle d'un autre" se traduit ici par "changer le rôle
+  // affiché". Simulation cohérente avec ce que l'outil peut représenter, pas
+  // un vrai contrôle d'accès -- n'importe qui peut recharger la page pour
+  // revenir à Administrateur (rôle par défaut au chargement).
+  function applyRoleSelectLock() {
+    const locked = currentRole !== "admin";
+    roleSelect.disabled = locked;
+    roleSelect.title = locked ? "Seul le rôle Administrateur peut changer de rôle." : "";
+  }
+  applyRoleSelectLock();
+
   function applyRoleTabVisibility() {
     const sections = ROLES[currentRole].sections;
     document.querySelector('[data-view="graphe"]').hidden = !sections.graphe;
@@ -41236,6 +41258,7 @@
   roleSelect.addEventListener("change", () => {
     currentRole = roleSelect.value;
     document.getElementById("role-note").textContent = ROLES[currentRole].note;
+    applyRoleSelectLock();
     buildSidebar(nodes);
     document.getElementById("sidebar-search").value = "";
     applyRoleTabVisibility();
