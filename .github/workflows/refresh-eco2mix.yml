@@ -1,0 +1,43 @@
+name: Refresh Eco2mix (Projet 18)
+
+on:
+  schedule:
+    # 6h UTC, quotidien — même créneau que le refresh du Projet 03 (refresh-deploy.yml)
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r requirements.txt
+
+      - name: Rafraîchir le système Supabase du Projet 18 (volumes réels)
+        env:
+          DATABASE_URL: ${{ secrets.ECO2MIX_DATABASE_URL }}
+        run: |
+          python scripts/scan_database.py --schemas public \
+            --tables eco2mix_national_tr ingestion_log stg_eco2mix mart_mix_energetique mart_pics_quotidiens mart_comparaison_j7 dim_date \
+            --merge --label "Supabase - Eco2mix (Projet 18)" \
+            --connect-timeout 15 --retries 3
+
+      - name: Committer si le schéma/volumes ont changé
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html snapshots/
+          if git diff --cached --quiet; then
+            echo "Rien à committer"
+            exit 0
+          fi
+          git commit -m "chore: refresh quotidien Eco2mix (Projet 18)"
+          git push
