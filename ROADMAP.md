@@ -191,8 +191,8 @@ disponibles via SQLAlchemy/le SGBD ne sont **pas encore** exploitées :
 
 **Fait le 2026-08-22** : Filiation couvrait la chaîne donnée brute → dbt
 (SQL) et s'arrêtait avant la couche Power BI — alors que le portfolio a deux
-modèles réels ([Projet 09](../projet-09-dashboard-powerbi),
-[Projet 13](../projet-13-entrepot-central-bigquery)) construits via le
+modèles réels ([Projet 09](https://github.com/valentinratigniet-byte/projet-09-dashboard-powerbi),
+[Projet 13](https://github.com/valentinratigniet-byte/projet-13-entrepot-central-bigquery)) construits via le
 **MCP `powerbi-modeling`** déjà installé. `extract_powerbi.py` complète
 maintenant cette chaîne (17 mesures DAX du Projet 13 extraites et reliées) —
 détail dans "À faire" ci-dessous, resté en place pour la trace.
