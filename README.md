@@ -85,15 +85,15 @@ flowchart LR
         PC["client Prefect<br/>(flows/runs/tasks)"]
     end
 
-    MAN -->|"extract_filiation.py<br/>(+ sqlglot)"| JS["realNodes + SNAPSHOTS<br/>(JS, toujours fusionné)"]
-    SQLA -->|scan_database.py| JS
-    MCP -->|"extract_powerbi.py<br/>+ find_duplicate_powerbi_measures.py"| JS
-    WF -->|extract_n8n.py| JS
-    PC -->|extract_prefect.py| JS
-    JS -->|régénère| HTML["index.html<br/>(Filiation)"]
-    JS -->|historise| SNAP[("snapshots/*.json")]
-    SNAP -.->|vue Dérive| HTML
-    HTML -->|clic formule/SQL/DAX/colonne| HTML
+    MAN -- "extract_filiation.py<br/>(+ sqlglot)" --> JS["realNodes + SNAPSHOTS<br/>(JS, toujours fusionné)"]
+    SQLA -- "scan_database.py" --> JS
+    MCP -- "extract_powerbi.py<br/>+ find_duplicate_powerbi_measures.py" --> JS
+    WF -- "extract_n8n.py" --> JS
+    PC -- "extract_prefect.py" --> JS
+    JS -- "régénère" --> HTML["index.html<br/>(Filiation)"]
+    JS -- "historise" --> SNAP[("snapshots/*.json")]
+    SNAP -. "vue Dérive" .-> HTML
+    HTML -- "clic formule/SQL/DAX/colonne" --> HTML
 
     style HTML fill:#137A8B,color:#fff
     style MAN fill:#E4A93C,color:#1a1a1a
