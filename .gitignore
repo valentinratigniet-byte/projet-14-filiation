@@ -3,3 +3,6 @@ __pycache__/
 connections.yml
 powerbi_export*.json
 !powerbi_export.example.json
+
+# Sortie locale de /graphify (exploration perso, pas versionnee)
+graphify-out/
