@@ -1,5 +1,6 @@
 sqlglot>=25
 psycopg2-binary>=2.9   # optionnel : volumétrie réelle si la base dbt est joignable
+psycopg[binary]>=3     # idem, dialecte "postgresql+psycopg" (ex. chaîne Supabase) — le refresh Eco2mix (Projet 18) en a besoin
 pyyaml>=6               # lecture de profiles.yml (extract_filiation.py) et connections.yml (scan_database.py)
 sqlalchemy>=2          # scan_database.py — introspection générique (hors dbt)
 # Pilote spécifique à la base scannée par scan_database.py, au besoin :
