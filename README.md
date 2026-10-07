@@ -58,8 +58,8 @@ au choix dans la barre latérale :
 - **Projet réel** — rien n'est inventé, tout vient d'une introspection
   réelle, fusionnée depuis **5 systèmes indépendants** : le
   [Projet 10](https://github.com/valentinratigniet-byte/projet-10-pipeline-elt) (`dbt_ecommerce`, manifest/catalog/
-  run_results), deux bases du projet partagé
-  [projet-baptiste-valentin](https://github.com/valentinratigniet-byte/projet-baptiste-valentin)
+  run_results), deux bases du projet
+  [data-platform-controle-gestion](https://github.com/valentinratigniet-byte/data-platform-controle-gestion)
   (`bv-postgres-dbtdev`, `bv-mysql-crm`), deux modèles Power BI réels
   ([Projet 09](https://github.com/valentinratigniet-byte/projet-09-dashboard-powerbi),
   [Projet 13](https://github.com/valentinratigniet-byte/projet-13-entrepot-central-bigquery)) et 5 workflows n8n
@@ -218,7 +218,7 @@ qui peut agir — pas si l'action est sûre.
 | Lignes en base, couche `raw` (projet réel) | 168 741 | comptage réel via psycopg2, pas une estimation — `fct_sales` seul : 121 331 |
 | Relations inférées | 4 | convention de nommage `xxx_id` → table `xxx`, sur les 5 tables `raw` (1 système) |
 | Mesures DAX (Power BI, Projets 09 + 13) | 34 | extraites de 2 modèles réels via MCP `powerbi-modeling` — 17 mesures dupliquées entre les deux modèles sous le même nom, dont **1 diverge réellement** (`CA moyenne 3M`, formule différente, signalée "fail") et 16 sont cohérentes |
-| Workflows n8n (pipeline) | 5 | lus depuis `projet-baptiste-valentin/n8n/workflows/*.json`, aucune connexion live |
+| Workflows n8n (pipeline) | 5 | lus depuis `data-platform-controle-gestion/n8n/workflows/*.json`, aucune connexion live |
 | Nœuds réels au total (jeu "Projet réel", fusionné) | 80 | dbt_ecommerce + bv-postgres-dbtdev + bv-mysql-crm + Power BI Projets 09+13 (34 mesures) + n8n (5 pipelines) + Prefect (2 flows) |
 
 ## 🗂️ Contenu
@@ -378,7 +378,7 @@ distincts suffisent à les distinguer) :
   règle métier du projet partagé (accès Postgres limité à la couche Gold
   `public_marts`, jamais direct sur `raw`/`erp_migre`).
   **Aucun MCP nécessaire** : les workflows sont déjà versionnés en JSON
-  (`projet-baptiste-valentin/n8n/workflows/*.json`), `scripts/extract_n8n.py`
+  (`data-platform-controle-gestion/n8n/workflows/*.json`), `scripts/extract_n8n.py`
   les lit directement — pas de connexion, pas d'identifiant, l'API n8n live
   reste inaccessible (authentification requise, bloquée par le
   classificateur de commandes) mais n'est pas nécessaire ici.
@@ -402,7 +402,7 @@ distincts suffisent à les distinguer) :
   `entrepot-etl` du Projet 04) avec leur vrai historique d'exécution.
 
 **Watchdog n8n (2026-08-24)** : `filiation-derive-structurelle.json`, un
-6e workflow versionné dans `projet-baptiste-valentin/n8n/workflows/` (même
+6e workflow versionné dans `data-platform-controle-gestion/n8n/workflows/` (même
 convention que les 5 existants — webhook de déclenchement, nœud Postgres
 via le credential partagé, `noOp` final documentant l'intégration à
 brancher). Compte les tables des schémas `erp_migre`/`public_marts`/`raw`

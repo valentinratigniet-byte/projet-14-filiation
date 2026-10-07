@@ -336,11 +336,11 @@ tant qu'un humain ne l'a pas validée. Voir
 [[governance-read-only-preference]].
 
 **⚠️ Frontière à respecter avant de commencer** : ce poste fait tourner des
-conteneurs qui appartiennent au [[projet-baptiste-valentin]] (`bv-ollama`,
+conteneurs qui appartiennent au [[data-platform-controle-gestion]] (`bv-ollama`,
 `bv-n8n`, `bv-mysql-crm`, `bv-postgres-dbtdev`, `bv-mongo-logs`) — un projet
-binôme avec Baptiste, pas un bac à sable pour ce projet-ci. Ne pas les
-réutiliser pour Filiation sans en parler à Valentin d'abord (accès
-concurrent, données qui ne sont pas seulement les siennes). Le réflexe déjà
+distinct, pas un bac à sable pour ce projet-ci. Ne pas les réutiliser pour
+Filiation sans décision explicite (accès concurrent, données d'un autre
+projet). Le réflexe déjà
 validé sur ce projet (voir 12ᵉ commit) est de préférer un conteneur jetable
 dédié — `docker run` isolé, nettoyé après le test — exactement comme pour le
 test MySQL de la ROADMAP chantier 1. Si un vrai besoin de connexion durable
@@ -434,7 +434,7 @@ encore aucun workflow ni exécution réelle** à ce moment-là.
 - [x] **Fait le 2026-08-22, plus tard le même jour** — entre-temps, le
       projet partagé a livré son Sprint 5 (Hub n8n) : `bv-n8n` porte
       maintenant **5 workflows réels, versionnés en JSON** dans
-      `projet-baptiste-valentin/n8n/workflows/*.json` (dette technique du
+      `data-platform-controle-gestion/n8n/workflows/*.json` (dette technique du
       projet partagé déjà résolue de leur côté : les workflows étaient créés
       à la main via l'API, jamais versionnés — voir leur `docs/N8N.md`).
       **Contournement du blocage d'authentification, pas une résolution** :
@@ -518,16 +518,16 @@ encore aucun workflow ni exécution réelle** à ce moment-là.
 - [x] **Fusion multi-sources construite ET testée en réel** — fait le
       2026-08-21/22. `scan_database.py --merge` (voir chantier 1) validé
       d'abord contre un conteneur jetable, puis en conditions réelles :
-      accord donné par Valentin (chef de projet) et Baptiste pour utiliser
-      les systèmes du projet partagé `bv-dataplatform` comme premier vrai
+      accord donné par Valentin (chef de projet) pour utiliser
+      les systèmes du projet `bv-dataplatform` comme premier vrai
       test multi-systèmes. Fusion du jeu réel `dbt_ecommerce` (13 nœuds)
       avec `bv-postgres-dbtdev` (23 tables, schémas `erp_migre`/
       `public_marts`/`raw`) et `bv-mysql-crm` (3 tables, schéma `crm`) → 39
       nœuds, 3 systèmes distincts dans la vue Systèmes, aucune collision
       d'id. Seule la structure (tables/colonnes/types/volumétrie/checks
       qualité) est capturée — `scan_database.py` n'extrait jamais de valeur
-      de donnée. Commité et poussé sur le repo public avec l'accord
-      explicite des deux (voir [[projet-baptiste-valentin]]).
+      de donnée. Commité et poussé sur le repo public avec un accord
+      explicite (voir [[data-platform-controle-gestion]]).
 - [x] **Documenté le 2026-08-22** (README, section "Limites assumées") : la
       limite de `scan_database.py`, basé sur SQLAlchemy donc uniquement des
       bases relationnelles (Postgres/MySQL/SQL Server/SQLite...) — pas
@@ -694,7 +694,7 @@ l'affichage par `canSeeNode` + existence, pas au stockage).
 
 **Automatisation (n8n, projet partagé)** : un nouveau workflow versionné
 `filiation-derive-structurelle.json` (dans
-`projet-baptiste-valentin/n8n/workflows/`, même convention que les 5
+`data-platform-controle-gestion/n8n/workflows/`, même convention que les 5
 existants) compte les tables des schémas `erp_migre`/`public_marts`/`raw`
 sur `bv-postgres-dbtdev` (`information_schema`, aucune colonne métier à
 deviner) et compare au dernier compte connu lors du dernier

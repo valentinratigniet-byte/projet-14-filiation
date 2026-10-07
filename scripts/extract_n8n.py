@@ -7,9 +7,8 @@ n8n sont déjà versionnés en JSON sur disque (`n8n/workflows/*.json`), aucune
 connexion live à une instance n8n n'est nécessaire — pas d'API, pas
 d'authentification, lecture de fichiers uniquement.
 
-Par défaut, lit les workflows du projet partagé `projet-baptiste-valentin`
-(sibling de `portfolio-data/` — voir [[projet-baptiste-valentin]] dans la
-mémoire du projet) : ce projet fait tourner le hub n8n réel (`bv-n8n`) dont
+Par défaut, lit les workflows du projet `data-platform-controle-gestion`
+(dossier voisin dans `portfolio-data/`) : ce projet fait tourner le hub n8n réel (`bv-n8n`) dont
 Filiation illustre l'orchestration. Override possible via --workflows-dir
 pour n'importe quel autre dossier de workflows n8n exportés.
 
@@ -30,7 +29,7 @@ from extract_filiation import SNAPSHOTS_DIR, build_snapshots_block, save_snapsho
 from scan_database import load_existing_real_nodes
 
 DEFAULT_HTML = Path(__file__).resolve().parent.parent / "index.html"
-DEFAULT_WORKFLOWS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "projet-baptiste-valentin" / "n8n" / "workflows"
+DEFAULT_WORKFLOWS_DIR = Path(__file__).resolve().parent.parent.parent / "data-platform-controle-gestion" / "n8n" / "workflows"
 
 # Schémas Postgres connus dans le projet partagé (convention dbt de ce
 # projet, pas une donnée générique) — sert à repérer un `schema.table` dans
