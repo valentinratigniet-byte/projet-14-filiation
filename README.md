@@ -24,6 +24,8 @@
 [Limites assumées](#️-limites-assumées) ·
 [Feuille de route →](ROADMAP.md)
 
+🗺️ **[Schéma du dépôt (GitDiagram)](https://gitdiagram.com/valentinratigniet-byte/projet-14-filiation)** : vue d'ensemble générée automatiquement à partir du code.
+
 ## 🔁 Reprise rapide (après une pause)
 
 1. **Base Postgres du Projet 10** (nécessaire pour le jeu "Projet réel" et
